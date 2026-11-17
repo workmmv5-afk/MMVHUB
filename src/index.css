@@ -1,0 +1,175 @@
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+:root,
+:root[data-accent="blue"] {
+  --hub-accent: #1A73E8;
+  --hub-accent-fg: #FFFFFF;
+  --hub-accent-soft: #D3E3FD;
+  --hub-accent-soft-fg: #041E49;
+}
+
+.dark,
+.dark[data-accent="blue"] {
+  --hub-accent: #8AB4F8;
+  --hub-accent-fg: #062E6F;
+  --hub-accent-soft: #004A77;
+  --hub-accent-soft-fg: #C2E7FF;
+}
+
+:root[data-accent="emerald"] {
+  --hub-accent: #146C2E;
+  --hub-accent-fg: #FFFFFF;
+  --hub-accent-soft: #C4EED0;
+  --hub-accent-soft-fg: #072711;
+}
+
+.dark[data-accent="emerald"] {
+  --hub-accent: #81C995;
+  --hub-accent-fg: #0A3818;
+  --hub-accent-soft: #0F5223;
+  --hub-accent-soft-fg: #C4EED0;
+}
+
+:root[data-accent="slate"] {
+  --hub-accent: #202124;
+  --hub-accent-fg: #FFFFFF;
+  --hub-accent-soft: #E8EAED;
+  --hub-accent-soft-fg: #202124;
+}
+
+.dark[data-accent="slate"] {
+  --hub-accent: #E8EAED;
+  --hub-accent-fg: #202124;
+  --hub-accent-soft: #3C4043;
+  --hub-accent-soft-fg: #E8EAED;
+}
+
+:root[data-accent="plum"] {
+  --hub-accent: #6750A4;
+  --hub-accent-fg: #FFFFFF;
+  --hub-accent-soft: #EADDFF;
+  --hub-accent-soft-fg: #21005D;
+}
+
+.dark[data-accent="plum"] {
+  --hub-accent: #D0BCFF;
+  --hub-accent-fg: #381E72;
+  --hub-accent-soft: #4F378B;
+  --hub-accent-soft-fg: #EADDFF;
+}
+
+:root[data-accent="amber"] {
+  --hub-accent: #B06000;
+  --hub-accent-fg: #FFFFFF;
+  --hub-accent-soft: #FEF7E0;
+  --hub-accent-soft-fg: #4D2A00;
+}
+
+.dark[data-accent="amber"] {
+  --hub-accent: #FDD663;
+  --hub-accent-fg: #413000;
+  --hub-accent-soft: #6B4E00;
+  --hub-accent-soft-fg: #FEF7E0;
+}
+
+:root[data-accent="crimson"] {
+  --hub-accent: #C5221F;
+  --hub-accent-fg: #FFFFFF;
+  --hub-accent-soft: #FCE8E6;
+  --hub-accent-soft-fg: #601410;
+}
+
+.dark[data-accent="crimson"] {
+  --hub-accent: #F28B82;
+  --hub-accent-fg: #601410;
+  --hub-accent-soft: #8C1D18;
+  --hub-accent-soft-fg: #FCE8E6;
+}
+
+@layer base {
+  html {
+    font-family: var(--font-sans);
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Hide scrollbars everywhere while preserving scroll behavior */
+  html,
+  body,
+  *,
+  *::before,
+  *::after {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  *::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+  }
+
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@layer utilities {
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .pt-safe {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+  .hub-bg-accent {
+    background-color: var(--hub-accent);
+    color: var(--hub-accent-fg);
+  }
+  .hub-text-accent {
+    color: var(--hub-accent);
+  }
+  .hub-border-accent {
+    border-color: var(--hub-accent);
+  }
+  .hub-bg-soft {
+    background-color: var(--hub-accent-soft);
+    color: var(--hub-accent-soft-fg);
+  }
+  .hub-privacy-blur {
+    filter: blur(6px);
+    transition: filter 150ms ease;
+    user-select: none;
+  }
+  .hub-privacy-blur:hover,
+  .hub-privacy-blur:focus-visible {
+    filter: blur(0);
+  }
+}
+
+.dark[data-oled="true"] body,
+.dark[data-oled="true"] .bg-\[\#131314\] {
+  background-color: #000000;
+}
+
+.dark[data-oled="true"] .bg-\[\#1E1F20\],
+.dark[data-oled="true"] .bg-\[\#202124\] {
+  background-color: #0A0A0B;
+}
+
+.dark[data-oled="true"] .bg-\[\#131314\]\/95 {
+  background-color: rgba(0, 0, 0, 0.95);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>MMV-HUB — Personal Encrypted Hub</title>
+    <meta
+      name="description"
+      content="Personal encrypted productivity hub for purchases, habits, and tasks with offline-first PWA support and cross-platform sync."
+    />
+    <meta property="og:title" content="MMV-HUB — Personal Encrypted Hub" />
+    <meta
+      property="og:description"
+      content="Personal encrypted productivity hub for purchases, habits, and tasks with offline-first PWA support and cross-platform sync."
+    />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="theme-color" content="#F8F9FA" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#131314" media="(prefers-color-scheme: dark)" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="MMV-HUB" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <script>
+      (function () {
+        try {
+          var saved = localStorage.getItem('mmv_hub_theme');
+          var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+          if (saved === 'dark' || ((!saved || saved === 'system') && prefersDark)) {
+            document.documentElement.classList.add('dark');
+          } else {
+            document.documentElement.classList.remove('dark');
+          }
+          var accent = localStorage.getItem('mmv_hub_accent') || 'blue';
+          document.documentElement.dataset.accent = accent;
+        } catch (e) {}
+      })();
+    </script>
+  </head>
+  <body class="bg-[#F8F9FA] text-[#202124] dark:bg-[#131314] dark:text-[#E8EAED] antialiased selection:bg-[#C2E7FF] selection:text-[#001D35] dark:selection:bg-[#004A77] dark:selection:text-[#C2E7FF]">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

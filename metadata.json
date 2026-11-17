@@ -1,0 +1,8 @@
+{
+  "name": "MMV-HUB",
+  "description": "Personal encrypted productivity hub for purchases, habits, and tasks with offline-first PWA support and cross-platform sync.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

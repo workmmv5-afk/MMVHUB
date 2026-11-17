@@ -1,0 +1,143 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Private personal user profile and zero-knowledge vault key metadata.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Firebase Auth UID of the vault owner."
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "minLength": 3,
+          "maxLength": 254,
+          "description": "Verified email address of the vault owner."
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "description": "Display name for the personal hub."
+        },
+        "vaultSalt": {
+          "type": "string",
+          "minLength": 16,
+          "maxLength": 128,
+          "description": "Base64-encoded PBKDF2 salt for deriving the local AES-256-GCM master key."
+        },
+        "verifierIv": {
+          "type": "string",
+          "minLength": 12,
+          "maxLength": 64,
+          "description": "Base64-encoded 96-bit IV for the encrypted vault verification token."
+        },
+        "verifierCiphertext": {
+          "type": "string",
+          "minLength": 16,
+          "maxLength": 512,
+          "description": "Base64-encoded AES-GCM ciphertext verifying the user's vault passphrase."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the vault profile was created."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the vault profile was last updated."
+        }
+      },
+      "required": [
+        "uid",
+        "email",
+        "displayName",
+        "vaultSalt",
+        "verifierIv",
+        "verifierCiphertext",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "VaultItem": {
+      "title": "VaultItem",
+      "description": "Client-side AES-256-GCM encrypted record synced across devices.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Firebase Auth UID of the owner."
+        },
+        "kind": {
+          "type": "string",
+          "enum": ["purchase", "habit", "task", "tasklist", "subscription", "calendar", "prefs", "goal"],
+          "description": "Record domain type inside the personal hub."
+        },
+        "iv": {
+          "type": "string",
+          "minLength": 12,
+          "maxLength": 64,
+          "description": "Base64-encoded 96-bit AES-GCM initialization vector."
+        },
+        "ciphertext": {
+          "type": "string",
+          "minLength": 16,
+          "maxLength": 32768,
+          "description": "Base64-encoded AES-256-GCM encrypted payload."
+        },
+        "version": {
+          "type": "number",
+          "description": "Monotonic schema/sync version integer."
+        },
+        "deleted": {
+          "type": "boolean",
+          "description": "Soft-delete tombstone flag for deterministic offline sync."
+        },
+        "clientUpdatedAt": {
+          "type": "number",
+          "description": "Client epoch milliseconds timestamp for conflict resolution."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of initial sync."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of latest sync."
+        }
+      },
+      "required": [
+        "ownerId",
+        "kind",
+        "iv",
+        "ciphertext",
+        "version",
+        "deleted",
+        "clientUpdatedAt",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Private user vault metadata and key verifier."
+    },
+    "/users/{userId}/vaultItems/{itemId}": {
+      "schema": { "$ref": "#/entities/VaultItem" },
+      "description": "Encrypted purchases, habits, tasks, and preferences belonging to the user."
+    }
+  }
+}

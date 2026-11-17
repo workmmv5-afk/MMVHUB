@@ -1,0 +1,192 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Safety Net: Default-deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Hardened Global Helpers
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn()
+        && request.auth.uid == userId
+        && request.auth.token.email_verified == true;
+    }
+
+    function isValidUserProfile(data) {
+      return data.keys().hasAll([
+          'uid',
+          'email',
+          'displayName',
+          'vaultSalt',
+          'verifierIv',
+          'verifierCiphertext',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'uid',
+          'email',
+          'displayName',
+          'vaultSalt',
+          'verifierIv',
+          'verifierCiphertext',
+          'createdAt',
+          'updatedAt'
+        ])
+        && isValidId(data.uid)
+        && data.uid == request.auth.uid
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 254
+        && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 100
+        && data.vaultSalt is string && data.vaultSalt.size() >= 16 && data.vaultSalt.size() <= 128
+        && data.verifierIv is string && data.verifierIv.size() >= 12 && data.verifierIv.size() <= 64
+        && data.verifierCiphertext is string && data.verifierCiphertext.size() >= 16 && data.verifierCiphertext.size() <= 512
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidVaultItem(data) {
+      return data.keys().hasAll([
+          'ownerId',
+          'kind',
+          'iv',
+          'ciphertext',
+          'version',
+          'deleted',
+          'clientUpdatedAt',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'ownerId',
+          'kind',
+          'iv',
+          'ciphertext',
+          'version',
+          'deleted',
+          'clientUpdatedAt',
+          'createdAt',
+          'updatedAt'
+        ])
+        && isValidId(data.ownerId)
+        && data.ownerId == request.auth.uid
+        && data.kind is string && data.kind in ['purchase', 'habit', 'task', 'tasklist', 'subscription', 'calendar', 'prefs', 'goal']
+        && data.iv is string && data.iv.size() >= 12 && data.iv.size() <= 64
+        && data.ciphertext is string && data.ciphertext.size() >= 16 && data.ciphertext.size() <= 32768
+        && data.version is int && data.version >= 1 && data.version <= 1000000
+        && data.deleted is bool
+        && data.clientUpdatedAt is int && data.clientUpdatedAt > 0
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    // Private User Profile & Key Verifier (PII Isolated)
+    match /users/{userId} {
+      allow get: if isOwner(userId) && isValidId(userId);
+      allow list: if false;
+
+      allow create: if isOwner(userId)
+        && isValidId(userId)
+        && isValidUserProfile(incoming())
+        && incoming().uid == request.auth.uid
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update: if isOwner(userId)
+        && isValidId(userId)
+        && isValidUserProfile(incoming())
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          // Action: Update display profile
+          incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'email', 'updatedAt'])
+          ||
+          // Action: Rotate vault salt & key verifier
+          incoming().diff(existing()).affectedKeys().hasOnly(['vaultSalt', 'verifierIv', 'verifierCiphertext', 'updatedAt'])
+        );
+
+      allow delete: if isOwner(userId) && isValidId(userId);
+
+      // Encrypted Personal Vault Items
+      match /vaultItems/{itemId} {
+        allow get: if isOwner(userId)
+          && isValidId(userId)
+          && isValidId(itemId)
+          && existing().ownerId == request.auth.uid;
+
+        allow list: if isOwner(userId)
+          && resource.data.ownerId == request.auth.uid;
+
+        allow create: if isOwner(userId)
+          && isValidId(userId)
+          && isValidId(itemId)
+          && isValidVaultItem(incoming())
+          && incoming().ownerId == request.auth.uid
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time
+          && exists(/databases/$(database)/documents/users/$(userId));
+
+        allow update: if isOwner(userId)
+          && isValidId(userId)
+          && isValidId(itemId)
+          && isValidVaultItem(incoming())
+          && existing().ownerId == request.auth.uid
+          && incoming().ownerId == existing().ownerId
+          && incoming().kind == existing().kind
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && (
+            // Action: Update encrypted payload
+            (
+              existing().deleted == false
+              && incoming().deleted == false
+              && incoming().diff(existing()).affectedKeys().hasOnly([
+                'iv',
+                'ciphertext',
+                'version',
+                'clientUpdatedAt',
+                'updatedAt'
+              ])
+            )
+            ||
+            // Action: Soft-delete tombstone (terminal state lock)
+            (
+              existing().deleted == false
+              && incoming().deleted == true
+              && incoming().diff(existing()).affectedKeys().hasOnly([
+                'iv',
+                'ciphertext',
+                'version',
+                'deleted',
+                'clientUpdatedAt',
+                'updatedAt'
+              ])
+            )
+          );
+
+        allow delete: if isOwner(userId)
+          && isValidId(userId)
+          && isValidId(itemId)
+          && existing().ownerId == request.auth.uid;
+      }
+    }
+  }
+}
