@@ -1,3 +1,4 @@
+import { getLocale } from './i18n';
 import type {
   CalendarEventRecord,
   GoalImageConfig,
@@ -47,7 +48,7 @@ export function shiftMonthKey(monthKey: string, delta: number): string {
 export function formatMonthLabel(monthKey: string): string {
   const [yStr, mStr] = monthKey.split('-');
   const date = new Date(Number(yStr), Number(mStr) - 1, 1);
-  return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  return date.toLocaleDateString(getLocale(), { month: 'long', year: 'numeric' });
 }
 
 // ---- User display formats (set from preferences by VaultContext) ----
@@ -67,7 +68,8 @@ export function formatShortDate(dateISO: string): string {
   if (displayDateStyle === 'iso') {
     return `${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
   }
-  return date.toLocaleDateString(displayDateStyle === 'dmy' ? 'en-GB' : 'en-US', {
+  const loc = getLocale();
+  return date.toLocaleDateString(loc === 'en-US' && displayDateStyle === 'dmy' ? 'en-GB' : loc, {
     month: 'short',
     day: 'numeric',
   });

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { BarChart3, X } from 'lucide-react';
 import { useVault } from '../context/VaultContext';
+import { t } from '../lib/i18n';
 import {
   advanceDateByCycle,
   calculateHabitStreak,
@@ -171,7 +172,7 @@ export const ReviewSheet: React.FC<{ onClose: () => void; initialRange?: Range }
         <div className="flex items-center justify-between">
           <h2 className="text-base font-semibold inline-flex items-center gap-2">
             <BarChart3 className="w-4 h-4 hub-text-accent" />
-            Review
+            {t('review.title')}
           </h2>
           <button type="button" onClick={onClose} aria-label="Close" className="min-h-[36px] min-w-[36px] rounded-full flex items-center justify-center hover:bg-[#F1F3F4] dark:hover:bg-[#282A2C]">
             <X className="w-4 h-4" />
@@ -189,20 +190,20 @@ export const ReviewSheet: React.FC<{ onClose: () => void; initialRange?: Range }
                 range === r ? 'bg-white dark:bg-[#1E1F20] shadow-2xs' : 'text-[#5F6368] dark:text-[#9AA0A6]'
               }`}
             >
-              {r === 'week' ? '7 days' : r === 'month' ? 'This month' : 'This year'}
+              {t(`review.${r}`)}
             </button>
           ))}
         </div>
 
         <div className="grid grid-cols-2 gap-2">
           {stat(
-            'Spent',
+            t('review.spent'),
             <span className={blur}>{formatCurrency(data.spent, cur)}</span>,
             data.budget > 0 ? `${Math.round((data.spent / data.budget) * 100)}% of budget` : undefined
           )}
-          {stat('Net', <span className={`${blur} ${data.net >= 0 ? 'text-[#146C2E] dark:text-[#81C995]' : ''}`}>{formatCurrency(data.net, cur)}</span>, data.income > 0 ? `${formatCurrency(data.income, cur)} in` : undefined)}
-          {stat('Habits', data.habitPct === null ? '—' : `${data.habitPct}%`, `${data.habitDone} check-ins`)}
-          {stat('Tasks done', data.tasksDone, data.goalsDone ? `${data.goalsDone} goal${data.goalsDone === 1 ? '' : 's'} completed` : undefined)}
+          {stat(t('review.net'), <span className={`${blur} ${data.net >= 0 ? 'text-[#146C2E] dark:text-[#81C995]' : ''}`}>{formatCurrency(data.net, cur)}</span>, data.income > 0 ? `${formatCurrency(data.income, cur)} in` : undefined)}
+          {stat(t('review.habits'), data.habitPct === null ? '—' : `${data.habitPct}%`, `${data.habitDone} check-ins`)}
+          {stat(t('review.tasksDone'), data.tasksDone, data.goalsDone ? `${data.goalsDone} goal${data.goalsDone === 1 ? '' : 's'} completed` : undefined)}
         </div>
 
         {data.best && data.best.best > 0 && (

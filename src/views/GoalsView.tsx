@@ -16,6 +16,7 @@ import {
   Trophy,
 } from 'lucide-react';
 import { useVault } from '../context/VaultContext';
+import { t } from '../lib/i18n';
 import {
   computeGoalProgress,
   formatShortDate,
@@ -192,7 +193,7 @@ export const GoalsView: React.FC<GoalsViewProps> = ({
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-[#1F1F1F] dark:text-[#E3E3E3]">
-            Goals
+            {t('goals.title')}
           </h1>
           <p className="text-sm text-[#444746] dark:text-[#C4C7C5]">
             Long-term targets with milestones, numbers, and linked tasks & habits
@@ -204,7 +205,7 @@ export const GoalsView: React.FC<GoalsViewProps> = ({
           className="self-start sm:self-auto min-h-[44px] px-5 rounded-full hub-bg-accent text-sm font-medium inline-flex items-center gap-2"
         >
           <Plus className="w-4 h-4" />
-          New Goal
+          {t('goals.new')}
         </button>
       </div>
 
@@ -214,10 +215,10 @@ export const GoalsView: React.FC<GoalsViewProps> = ({
         className="rounded-2xl border border-[#DADCE0] dark:border-[#3C4043] bg-[#E8EAED] dark:bg-[#3C4043] grid grid-cols-2 md:grid-cols-4 gap-px overflow-hidden"
       >
         {[
-          { label: 'Active', value: String(counts.active), icon: Target },
-          { label: 'Avg. progress', value: `${avgProgress}%`, icon: Flag },
-          { label: 'Due in 30 days', value: String(dueSoonCount), icon: Flag },
-          { label: 'Completed', value: String(counts.completed), icon: Trophy },
+          { label: t('goals.active'), value: String(counts.active), icon: Target },
+          { label: t('goals.avg'), value: `${avgProgress}%`, icon: Flag },
+          { label: t('goals.due30'), value: String(dueSoonCount), icon: Flag },
+          { label: t('goals.completed'), value: String(counts.completed), icon: Trophy },
         ].map((s) => {
           const Icon = s.icon;
           return (
@@ -254,7 +255,7 @@ export const GoalsView: React.FC<GoalsViewProps> = ({
                   : 'text-[#5F6368] dark:text-[#9AA0A6]'
               }`}
             >
-              {s} ({counts[s]})
+              {s === 'all' ? t('common.all') : t(`goals.${s}`)} ({counts[s]})
             </button>
           ))}
         </div>
@@ -627,7 +628,7 @@ export const GoalsView: React.FC<GoalsViewProps> = ({
                         className="min-h-[36px] px-2.5 rounded-full text-xs font-medium text-[#5F6368] dark:text-[#9AA0A6] hover:bg-[#F1F3F4] dark:hover:bg-[#282A2C] inline-flex items-center gap-1.5"
                       >
                         <ListPlus className="w-3.5 h-3.5" />
-                        Add task
+                        {t('goals.addTask')}
                       </button>
                     )}
                     <button
@@ -658,7 +659,7 @@ export const GoalsView: React.FC<GoalsViewProps> = ({
                         className="min-h-[36px] px-3 rounded-full text-xs font-medium text-[#5F6368] dark:text-[#9AA0A6] hover:bg-[#F1F3F4] dark:hover:bg-[#282A2C] inline-flex items-center gap-1.5"
                       >
                         <Play className="w-3.5 h-3.5" />
-                        Resume
+                        {t('goals.resume')}
                       </button>
                     )}
                     {isDone ? (
@@ -668,7 +669,7 @@ export const GoalsView: React.FC<GoalsViewProps> = ({
                         className="min-h-[36px] px-3 rounded-full text-xs font-medium text-[#5F6368] dark:text-[#9AA0A6] hover:bg-[#F1F3F4] dark:hover:bg-[#282A2C] inline-flex items-center gap-1.5"
                       >
                         <RotateCcw className="w-3.5 h-3.5" />
-                        Reopen
+                        {t('goals.reopen')}
                       </button>
                     ) : (
                       <button
@@ -677,7 +678,7 @@ export const GoalsView: React.FC<GoalsViewProps> = ({
                         className="min-h-[36px] px-3 rounded-full text-xs font-medium hub-bg-soft inline-flex items-center gap-1.5"
                       >
                         <Trophy className="w-3.5 h-3.5" />
-                        Complete
+                        {t('goals.complete')}
                       </button>
                     )}
                   </div>

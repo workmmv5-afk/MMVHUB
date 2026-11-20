@@ -4,6 +4,7 @@ import { useVault } from '../context/VaultContext';
 import { LogoMark } from './Logo';
 import { PIN_MAX, PIN_MIN } from '../lib/quickUnlock';
 import { haptic } from '../lib/haptics';
+import { t } from '../lib/i18n';
 
 type Step = 'pin' | 'confirm' | 'passphrase' | 'recovery';
 
@@ -136,7 +137,7 @@ export const VaultGate: React.FC = () => {
           setPin('');
           setFirstPin('');
           setStep('pin');
-          fail('PINs didn’t match. Try again.');
+          fail(t('gate.pinMismatch'));
           return;
         }
         setBusy(true);
@@ -156,13 +157,13 @@ export const VaultGate: React.FC = () => {
           setPin('');
           if (res.lockedUntil && res.lockedUntil > Date.now()) {
             setLockedUntil(res.lockedUntil);
-            fail('Too many attempts.');
+            fail(t('gate.tooMany'));
           } else {
             fail(
               res.error ??
                 (res.attemptsLeft !== undefined && res.attemptsLeft <= 2
-                  ? `Wrong PIN · ${res.attemptsLeft} ${res.attemptsLeft === 1 ? 'try' : 'tries'} left`
-                  : 'Wrong PIN')
+                  ? t('gate.wrongPinLeft', { n: res.attemptsLeft })
+                  : t('gate.wrongPin'))
             );
           }
         }
@@ -212,15 +213,15 @@ export const VaultGate: React.FC = () => {
     e.preventDefault();
     setError('');
     if (isSetup) {
-      if (passphrase.length < 8) return fail('Use at least 8 characters.');
-      if (passphrase !== confirmPassphrase) return fail('Passphrases don’t match.');
+      if (passphrase.length < 8) return fail(t('gate.min8'));
+      if (passphrase !== confirmPassphrase) return fail(t('gate.passMismatch'));
     } else if (!passphrase) {
-      return fail('Enter your passphrase.');
+      return fail(t('gate.enterPassphrase'));
     }
     setBusy(true);
     try {
       if (isSetup) await setupPassphraseVault(passphrase);
-      else if (!(await unlockWithPassphrase(passphrase))) fail('Wrong passphrase.');
+      else if (!(await unlockWithPassphrase(passphrase))) fail(t('gate.wrongPass'));
     } catch (err) {
       fail(err instanceof Error ? err.message : 'Something went wrong.');
     } finally {
@@ -253,15 +254,15 @@ export const VaultGate: React.FC = () => {
 
   const title = isSetup
     ? step === 'confirm'
-      ? 'Confirm PIN'
+      ? t('gate.confirmPin')
       : step === 'passphrase'
-        ? 'Create passphrase'
-        : 'Create a PIN'
+        ? t('gate.createPassphrase')
+        : t('gate.createPin')
     : step === 'passphrase'
-      ? 'Enter passphrase'
+      ? t('gate.enterPassphrase')
       : step === 'recovery'
-        ? 'Recovery code'
-        : 'Enter PIN';
+        ? t('gate.recoveryCode')
+        : t('gate.enterPin');
 
   const linkCls =
     'text-xs font-medium text-[#5F6368] dark:text-[#9AA0A6] hover:text-[var(--hub-accent)] min-h-[36px] px-2';
@@ -288,7 +289,7 @@ export const VaultGate: React.FC = () => {
               setBusy(true);
               try {
                 if (!(await unlockWithRecoveryCode(recoveryCode))) {
-                  fail('That code doesn’t match this vault.');
+                  fail(t('gate.codeNoMatch'));
                 }
               } finally {
                 setBusy(false);
@@ -316,7 +317,7 @@ export const VaultGate: React.FC = () => {
               disabled={busy || recoveryCode.trim().length < 20}
               className="w-full min-h-[48px] rounded-full hub-bg-accent text-sm font-medium disabled:opacity-50"
             >
-              {busy ? 'Checking…' : 'Unlock'}
+              {busy ? t('gate.checking') : t('gate.unlock')}
             </button>
           </form>
         ) : step !== 'passphrase' ? (
@@ -334,14 +335,14 @@ export const VaultGate: React.FC = () => {
               }`}
             >
               {cooling
-                ? `Try again in ${coolSecs}s`
+                ? t('gate.tryAgainIn', { s: coolSecs })
                 : error ||
                   (isSetup
                     ? step === 'confirm'
-                      ? 'Enter it once more'
-                      : `${PIN_MIN}–${PIN_MAX} digits`
+                      ? t('gate.enterAgain')
+                      : t('gate.pinHint', { min: PIN_MIN, max: PIN_MAX })
                     : busy
-                      ? 'Unlocking…'
+                      ? t('gate.unlocking')
                       : '')}
             </p>
 
@@ -354,7 +355,7 @@ export const VaultGate: React.FC = () => {
                       type="button"
                       onClick={() => void tryBiometric()}
                       disabled={busy}
-                      aria-label="Unlock with fingerprint"
+                      aria-label={t('gate.fingerprint')}
                       className="h-16 rounded-full flex items-center justify-center hub-text-accent hover:bg-[#E8EAED] dark:hover:bg-[#282A2C] disabled:opacity-40"
                     >
                       <Fingerprint className="w-7 h-7" />
@@ -366,7 +367,7 @@ export const VaultGate: React.FC = () => {
                       onClick={() => void submitPin(pin)}
                       className="h-16 rounded-full text-sm font-semibold hub-text-accent hover:bg-[#E8EAED] dark:hover:bg-[#282A2C]"
                     >
-                      Next
+                      {t('gate.next')}
                     </button>
                   ) : (
                     <span key={k} />
@@ -408,7 +409,7 @@ export const VaultGate: React.FC = () => {
                 type={showPass ? 'text' : 'password'}
                 value={passphrase}
                 onChange={(e) => setPassphrase(e.target.value)}
-                placeholder="Passphrase"
+                placeholder={t('gate.passphrase')}
                 autoFocus
                 autoComplete={isSetup ? 'new-password' : 'current-password'}
                 className="w-full min-h-[48px] rounded-2xl border border-[#DADCE0] dark:border-[#3C4043] bg-white dark:bg-[#1E1F20] px-4 pr-12 text-sm focus:outline-none focus:border-[var(--hub-accent)]"
@@ -427,7 +428,7 @@ export const VaultGate: React.FC = () => {
                 type={showPass ? 'text' : 'password'}
                 value={confirmPassphrase}
                 onChange={(e) => setConfirmPassphrase(e.target.value)}
-                placeholder="Confirm passphrase"
+                placeholder={t('gate.confirmPassphrase')}
                 autoComplete="new-password"
                 className="w-full min-h-[48px] rounded-2xl border border-[#DADCE0] dark:border-[#3C4043] bg-white dark:bg-[#1E1F20] px-4 text-sm focus:outline-none focus:border-[var(--hub-accent)]"
               />
@@ -442,11 +443,11 @@ export const VaultGate: React.FC = () => {
               disabled={busy}
               className="w-full min-h-[48px] rounded-full hub-bg-accent text-sm font-medium disabled:opacity-50"
             >
-              {busy ? 'Working…' : isSetup ? 'Create vault' : 'Unlock'}
+              {busy ? t('gate.working') : isSetup ? t('gate.createVault') : t('gate.unlock')}
             </button>
             {isSetup && (
               <p className="text-[11px] text-center text-[#5F6368] dark:text-[#9AA0A6]">
-                Use this on all your devices to sync.
+                {t('gate.syncHint')}
               </p>
             )}
           </form>
@@ -464,7 +465,7 @@ export const VaultGate: React.FC = () => {
                 setStep(step === 'passphrase' ? 'pin' : 'passphrase');
               }}
             >
-              {step === 'passphrase' ? 'Use a PIN instead' : 'Use a passphrase'}
+              {step === 'passphrase' ? t('gate.usePin') : t('gate.usePassphrase')}
             </button>
           ) : (
             hasPin &&
@@ -477,19 +478,19 @@ export const VaultGate: React.FC = () => {
                   setStep(step === 'passphrase' ? 'pin' : 'passphrase');
                 }}
               >
-                {step === 'passphrase' ? 'Use PIN' : 'Use passphrase'}
+                {step === 'passphrase' ? t('gate.usePinShort') : t('gate.usePassShort')}
               </button>
             )
           )}
 
           {!user && isOnline && (
             <button type="button" className={linkCls} disabled={busy} onClick={() => void googleRestore()}>
-              {isSetup ? 'Restore with Google' : 'Sign in with Google'}
+              {isSetup ? t('gate.restoreGoogle') : t('gate.signInGoogle')}
             </button>
           )}
           {user && (
             <button type="button" className={linkCls} onClick={() => void signOutGoogle()}>
-              Sign out
+              {t('common.signOut')}
             </button>
           )}
 
@@ -502,14 +503,14 @@ export const VaultGate: React.FC = () => {
                 setStep(step === 'recovery' ? (hasPin ? 'pin' : 'passphrase') : 'recovery');
               }}
             >
-              {step === 'recovery' ? 'Back' : 'Recovery code'}
+              {step === 'recovery' ? t('common.back') : t('gate.recoveryCode')}
             </button>
           )}
 
           {!isSetup &&
             (!confirmWipe ? (
               <button type="button" className={linkCls} onClick={() => setConfirmWipe(true)}>
-                Forgot?
+                {t('gate.forgot')}
               </button>
             ) : (
               <span className="inline-flex items-center gap-1">
@@ -522,17 +523,17 @@ export const VaultGate: React.FC = () => {
                     setPin('');
                   }}
                 >
-                  Erase this device
+                  {t('gate.erase')}
                 </button>
                 <button type="button" className={linkCls} onClick={() => setConfirmWipe(false)}>
-                  Cancel
+                  {t('common.cancel')}
                 </button>
               </span>
             ))}
         </div>
         {confirmWipe && (
           <p className="text-[11px] text-center text-[#5F6368] dark:text-[#9AA0A6] -mt-3">
-            Deletes local data. Synced data can be restored with Google + passphrase.
+            {t('gate.eraseHint')}
           </p>
         )}
       </div>

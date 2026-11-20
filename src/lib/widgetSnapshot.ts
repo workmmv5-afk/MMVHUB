@@ -21,6 +21,7 @@ import {
   isHabitScheduledOnDate,
 } from './format';
 import { isNative, MmvWidgets } from './native';
+import { getLocale, t } from './i18n';
 
 export const DEFAULT_PHONE_WIDGETS: Required<Omit<PhoneWidgetConfig, 'quick'>> & {
   quick: Required<NonNullable<PhoneWidgetConfig['quick']>>;
@@ -47,7 +48,7 @@ export function resolvePhoneWidgets(p: Pick<HubPreferences, 'phoneWidgets'>) {
     ...raw,
     opacity: Math.max(0, Math.min(100, raw.opacity ?? d.opacity)),
     rows: Math.max(1, Math.min(5, raw.rows ?? d.rows)),
-    todayTitle: (raw.todayTitle ?? d.todayTitle).slice(0, 24) || 'Today',
+    todayTitle: (raw.todayTitle ?? t('widget.today')).slice(0, 24) || t('widget.today'),
     quick: { ...d.quick, ...raw.quick },
   };
 }
@@ -87,7 +88,7 @@ export function buildWidgetSnapshot(params: {
     quick: cfg.quick,
   };
   if (params.locked) {
-    return { v: 1, day: getTodayISO(), updatedAt: Date.now(), locked: true, lockedText: 'Unlock MMV-HUB to see your day', config };
+    return { v: 1, day: getTodayISO(), updatedAt: Date.now(), locked: true, lockedText: t('widget.unlock'), config };
   }
 
   const { tasks, habits, calendarEvents, subscriptions, purchases, goals, preferences } = params;
@@ -179,7 +180,7 @@ export function buildWidgetSnapshot(params: {
       }),
     },
     spend: {
-      label: new Date().toLocaleDateString('en-US', { month: 'long' }),
+      label: new Date().toLocaleDateString(getLocale(), { month: 'long' }),
       spent: formatCurrency(spent, preferences.currency),
       budget: formatCurrency(budget, preferences.currency),
       hasBudget: budget > 0,

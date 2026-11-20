@@ -1,0 +1,16 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="widget_today_label">MMV Bugun</string>
+    <string name="widget_today_desc">Bugungi vazifalar, odatlar va tadbirlar</string>
+    <string name="widget_quick_label">MMV Tez qo‘shish</string>
+    <string name="widget_quick_desc">Vazifa, xarid, odat yoki tadbir qo‘shish</string>
+    <string name="widget_spend_label">MMV Xarajatlar</string>
+    <string name="widget_spend_desc">Shu oydagi xarajat va byudjet</string>
+    <string name="widget_goals_label">MMV Maqsadlar</string>
+    <string name="widget_goals_desc">Faol maqsadlaringiz holati</string>
+    <string name="sc_new_task">Yangi vazifa</string>
+    <string name="sc_new_spend">Xarid qo‘shish</string>
+    <string name="sc_habits">Bugungi odatlar</string>
+    <string name="sc_new_event">Yangi tadbir</string>
+    <string name="tile_label">MMV tez qo‘shish</string>
+</resources>

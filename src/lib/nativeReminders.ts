@@ -23,6 +23,7 @@ import {
 } from './format';
 import { resolveNotificationConfig } from './notifications';
 import { hashId, isNative, loadLocalNotifications } from './native';
+import { t as tr } from './i18n';
 
 export type PlannedKind = 'task' | 'habit' | 'event' | 'subscription' | 'goal' | 'digest';
 
@@ -86,7 +87,7 @@ export function planReminders(params: {
             out.push({
               key: `nag-${t.id}-${day}-${k}`,
               at: at(day, t.dueTime, digestMin, -k),
-              title: `Still open: ${t.title}`,
+              title: tr('push.stillOpen', { title: t.title }),
               body: `Due ${formatTime12h(t.dueTime)} · tap Done when finished`,
               kind: 'task',
               recordId: t.id,
@@ -97,7 +98,7 @@ export function planReminders(params: {
         out.push({
           key: `task-${t.id}-${day}`,
           at: t.dueTime ? at(day, t.dueTime, digestMin, cfg.taskLeadMinutes) : at(day, undefined, digestMin),
-          title: t.dueTime ? `${t.title}` : `Due today: ${t.title}`,
+          title: t.dueTime ? `${t.title}` : tr('push.dueToday', { title: t.title }),
           body: t.dueTime
             ? `${cfg.taskLeadMinutes > 0 ? `In ${cfg.taskLeadMinutes} min · ` : ''}${formatTime12h(t.dueTime)}${t.area ? ` · ${t.area}` : ''}`
             : `${t.priority} priority${t.area ? ` · ${t.area}` : ''}`,
@@ -117,7 +118,7 @@ export function planReminders(params: {
           out.push({
             key: `overdue-${day}`,
             at: at(day, undefined, digestMin),
-            title: overdue.length === 1 ? `Overdue: ${overdue[0].title}` : `${overdue.length} overdue tasks`,
+            title: overdue.length === 1 ? tr('push.overdueOne', { title: overdue[0].title }) : tr('push.overdueMany', { n: overdue.length }),
             body: overdue.slice(0, 4).map((t) => t.title).join(' · '),
             kind: overdue.length === 1 ? 'task' : 'digest',
             recordId: overdue.length === 1 ? overdue[0].id : undefined,
@@ -135,7 +136,7 @@ export function planReminders(params: {
           key: `habit-${h.id}-${day}`,
           at: at(day, h.preferredTime, digestMin),
           title: h.name,
-          body: h.targetPerDay > 1 ? `Goal: ${h.targetPerDay} ${h.unit || 'times'}` : 'Keep the streak going',
+          body: h.targetPerDay > 1 ? `Goal: ${h.targetPerDay} ${h.unit || 'times'}` : tr('push.streak'),
           kind: 'habit',
           recordId: h.id,
           urgent: false,
@@ -168,7 +169,7 @@ export function planReminders(params: {
       out.push({
         key: `evening-${day}`,
         at: at(day, cfg.eveningSummaryTime, 1260),
-        title: 'Evening wrap-up',
+        title: tr('push.evening'),
         body: 'See what’s left today and what’s next tomorrow',
         kind: 'digest',
         urgent: false,
@@ -184,7 +185,7 @@ export function planReminders(params: {
         out.push({
           key: `trial48-${s.id}-${s.nextBillingDate}`,
           at: at(getOffsetDateISO(-2, s.nextBillingDate), undefined, digestMin),
-          title: `Trial ends in 2 days: ${s.name}`,
+          title: tr('push.trialEnds', { name: s.name }),
           body: 'Keep it or cancel now',
           kind: 'subscription',
           recordId: s.id,
@@ -197,7 +198,7 @@ export function planReminders(params: {
       out.push({
         key: `sub-${s.id}-${s.nextBillingDate}`,
         at: at(alertDay, undefined, digestMin),
-        title: s.isTrial ? `Trial ends: ${s.name}` : `Renews: ${s.name}`,
+        title: s.isTrial ? tr('push.trialEndsOn', { name: s.name }) : tr('push.renews', { name: s.name }),
         body: `${days === 0 ? 'Today' : days === 1 ? 'Tomorrow' : `In ${days} days`} · ${formatCurrency(s.amount, preferences.currency)}`,
         kind: 'subscription',
         recordId: s.id,
@@ -212,7 +213,7 @@ export function planReminders(params: {
       out.push({
         key: `goal-${g.id}-${g.targetDate}`,
         at: at(getOffsetDateISO(-3, g.targetDate), undefined, digestMin),
-        title: `Goal due soon: ${g.title}`,
+        title: tr('push.goalSoon', { title: g.title }),
         body: 'Target date in 3 days',
         kind: 'goal',
         recordId: g.id,
@@ -289,12 +290,12 @@ export async function ensureNativeChannels(preferences: HubPreferences): Promise
       {
         id: 'TASK',
         actions: [
-          { id: 'done', title: 'Done' },
-          { id: 'snooze', title: `Snooze ${cfg.snoozeMinutes >= 60 ? `${cfg.snoozeMinutes / 60}h` : `${cfg.snoozeMinutes}m`}` },
+          { id: 'done', title: tr('push.done') },
+          { id: 'snooze', title: tr('push.snooze', { d: cfg.snoozeMinutes >= 60 ? `${cfg.snoozeMinutes / 60}h` : `${cfg.snoozeMinutes}m` }) },
         ],
       },
-      { id: 'HABIT', actions: [{ id: 'done', title: 'Check in' }] },
-      { id: 'SUB', actions: [{ id: 'paid', title: 'Mark paid' }] },
+      { id: 'HABIT', actions: [{ id: 'done', title: tr('push.checkIn') }] },
+      { id: 'SUB', actions: [{ id: 'paid', title: tr('push.markPaid') }] },
     ],
   });
   return id;
@@ -393,7 +394,7 @@ export async function syncOngoingSummary(params: {
     notifications: [
       {
         id: ONGOING_ID,
-        title: 'Today',
+        title: tr('widget.today'),
         body,
         channelId: 'mmv_ongoing',
         smallIcon: 'ic_stat_mmv',

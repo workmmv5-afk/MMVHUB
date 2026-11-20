@@ -52,6 +52,7 @@ import { resolveHomeWidgets } from '../lib/homeWidgets';
 import { WidgetCustomizer } from '../components/WidgetCustomizer';
 import { startAmbient, stopAmbient, type AmbientKind } from '../lib/ambient';
 import { setFocusNotification } from '../lib/nativeReminders';
+import { getLocale, t } from '../lib/i18n';
 import { GOAL_COLOR_CLASSES, getGoalPace } from './GoalsView';
 import type {
   CalendarEventRecord,
@@ -310,13 +311,13 @@ export const HomeView: React.FC<HomeViewProps> = ({
   const greeting = useMemo(() => {
     const hour = new Date().getHours();
     const base =
-      hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
+      hour < 12 ? t('home.morning') : hour < 18 ? t('home.afternoon') : t('home.evening');
     const firstName = user?.displayName?.split(' ')[0];
     return firstName ? `${base}, ${firstName}` : base;
   }, [user?.displayName]);
 
   const todayFormatted = useMemo(() => {
-    return new Date().toLocaleDateString('en-US', {
+    return new Date().toLocaleDateString(getLocale(), {
       weekday: 'long',
       month: 'short',
       day: 'numeric',
@@ -440,7 +441,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
       ).length;
       return {
         iso,
-        weekday: dt.toLocaleDateString('en-US', { weekday: 'short' }),
+        weekday: dt.toLocaleDateString(getLocale(), { weekday: 'short' }),
         dayNum: dt.getDate(),
         totalCount: evCount + taskCount + subCount,
       };
@@ -615,7 +616,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
               className="text-left bg-white dark:bg-[#1E1F20] hover:bg-[#F8F9FA] dark:hover:bg-[#282A2C] p-4 sm:p-5 transition-colors"
             >
               <span className="text-xs text-[#5F6368] dark:text-[#9AA0A6]">
-                Month Net Spend
+                {t('home.monthSpend')}
               </span>
               <p className={`mt-1.5 text-xl sm:text-2xl font-semibold font-mono tabular-nums text-[#202124] dark:text-[#E8EAED] ${blurClass}`}>
                 {formatCurrency(monthlySpend, preferences.currency)}
@@ -646,7 +647,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
             >
               <div className="min-w-0">
                 <span className="text-xs text-[#5F6368] dark:text-[#9AA0A6]">
-                  Today's Goals
+                  {t('home.todaysGoals')}
                 </span>
                 <p className="mt-1.5 text-xl sm:text-2xl font-semibold font-mono tabular-nums text-[#202124] dark:text-[#E8EAED]">
                   {dailyGoalsDone} / {dailyGoalsTotal}
@@ -692,7 +693,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
               className="text-left bg-white dark:bg-[#1E1F20] hover:bg-[#F8F9FA] dark:hover:bg-[#282A2C] p-4 sm:p-5 transition-colors"
             >
               <span className="text-xs text-[#5F6368] dark:text-[#9AA0A6]">
-                Open Tasks
+                {t('home.openTasks')}
               </span>
               <p className="mt-1.5 text-xl sm:text-2xl font-semibold font-mono tabular-nums text-[#202124] dark:text-[#E8EAED]">
                 {openTasks.length}
@@ -704,7 +705,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                     : 'text-[#5F6368] dark:text-[#9AA0A6]'
                 }`}
               >
-                {overdueCount > 0 ? `${overdueCount} overdue` : 'On schedule'}
+                {overdueCount > 0 ? t('home.overdue', { n: overdueCount }) : t('home.onSchedule')}
               </p>
             </button>
 
@@ -714,7 +715,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
               className="text-left bg-white dark:bg-[#1E1F20] hover:bg-[#F8F9FA] dark:hover:bg-[#282A2C] p-4 sm:p-5 transition-colors"
             >
               <span className="text-xs text-[#5F6368] dark:text-[#9AA0A6]">
-                30d Renewals
+                {t('home.renewals30')}
               </span>
               <p className={`mt-1.5 text-xl sm:text-2xl font-semibold font-mono tabular-nums text-[#202124] dark:text-[#E8EAED] ${blurClass}`}>
                 {formatCurrency(next30DaysSubsTotal, preferences.currency)}
@@ -733,11 +734,11 @@ export const HomeView: React.FC<HomeViewProps> = ({
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {(
                 [
-                  { label: 'New Task', icon: ListPlus, onClick: onOpenNewTask },
-                  { label: 'Log Purchase', icon: Receipt, onClick: onOpenNewPurchase },
-                  { label: 'New Habit', icon: Repeat, onClick: onOpenNewHabit },
+                  { label: t('home.newTask'), icon: ListPlus, onClick: onOpenNewTask },
+                  { label: t('home.logPurchase'), icon: Receipt, onClick: onOpenNewPurchase },
+                  { label: t('home.newHabit'), icon: Repeat, onClick: onOpenNewHabit },
                   {
-                    label: 'New Event',
+                    label: t('home.newEvent'),
                     icon: CalendarPlus,
                     onClick: () => onOpenNewEvent(todayISO),
                   },
@@ -1125,7 +1126,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
           <section className={`${CARD_CLASS} p-4 sm:p-5 space-y-3`}>
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-semibold text-[#202124] dark:text-[#E8EAED]">
-                7-Day Schedule
+                {t('home.schedule7')}
               </h2>
               <div className="flex items-center gap-2">
                 <button
@@ -1291,7 +1292,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
             <Sunrise className="w-5 h-5 hub-text-accent shrink-0 mt-0.5" />
             <div className="min-w-0 space-y-0.5">
               <p className="text-sm font-semibold text-[#202124] dark:text-[#E8EAED]">
-                {parts.length ? `Today: ${parts.join(' · ')}` : 'Nothing pending today 🎉'}
+                {parts.length ? `Today: ${parts.join(' · ')}` : t('home.nothingToday')}
               </p>
               <p className="text-xs text-[#5F6368] dark:text-[#9AA0A6]">
                 {firstEvent
@@ -1312,14 +1313,14 @@ export const HomeView: React.FC<HomeViewProps> = ({
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-semibold text-[#202124] dark:text-[#E8EAED] inline-flex items-center gap-1.5">
                 <Target className="w-4 h-4 hub-text-accent" />
-                Goals
+                {t('home.goals')}
               </h2>
               <button
                 type="button"
                 onClick={() => onNavigate('goals')}
                 className="inline-flex items-center gap-1 text-xs font-medium hub-text-accent hover:underline"
               >
-                <span>All Goals</span>
+                <span>{t('home.allGoals')}</span>
                 <ArrowRight className="w-3.5 h-3.5" />
               </button>
             </div>
@@ -1383,7 +1384,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-semibold text-[#202124] dark:text-[#E8EAED] inline-flex items-center gap-1.5">
                 <Flame className="w-4 h-4 text-[#E8710A] dark:text-[#FCAD70]" />
-                Habit Streaks
+                {t('home.streaks')}
               </h2>
               <button
                 type="button"
@@ -1432,7 +1433,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-semibold text-[#202124] dark:text-[#E8EAED] inline-flex items-center gap-1.5">
                 <Flag className="w-4 h-4 hub-text-accent" />
-                Countdowns
+                {t('home.countdowns')}
               </h2>
               <button
                 type="button"
@@ -1480,7 +1481,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
           <section className={`${CARD_CLASS} p-4 sm:p-5 space-y-3`}>
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-semibold text-[#202124] dark:text-[#E8EAED]">
-                Recent Wallet Activity
+                {t('home.recentWallet')}
               </h2>
               <div className="flex items-center gap-2">
                 <button
@@ -1560,7 +1561,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                 className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#202124] dark:text-[#E8EAED]"
               >
                 <StickyNote className="w-4 h-4 hub-text-accent" />
-                <span>{privateNote ? 'Private scratch' : 'Encrypted Note'}</span>
+                <span>{privateNote ? t('home.privateNote') : t('home.note')}</span>
               </label>
               <button
                 type="button"
@@ -1646,7 +1647,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
             className="min-h-[36px] min-w-[36px] px-2.5 rounded-full text-xs font-medium text-[#5F6368] dark:text-[#9AA0A6] hover:bg-[#F1F3F4] dark:hover:bg-[#282A2C] inline-flex items-center gap-1.5"
           >
             <BarChart3 className="w-4 h-4" />
-            <span className="hidden sm:inline">Review</span>
+            <span className="hidden sm:inline">{t('home.review')}</span>
           </button>
           <button
             type="button"
@@ -1656,7 +1657,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
             className="min-h-[36px] min-w-[36px] px-2.5 rounded-full text-xs font-medium text-[#5F6368] dark:text-[#9AA0A6] hover:bg-[#F1F3F4] dark:hover:bg-[#282A2C] inline-flex items-center gap-1.5"
           >
             <LayoutGrid className="w-4 h-4" />
-            <span className="hidden sm:inline">Customize</span>
+            <span className="hidden sm:inline">{t('home.customize')}</span>
           </button>
         </div>
       </section>
@@ -1664,14 +1665,14 @@ export const HomeView: React.FC<HomeViewProps> = ({
       {renderedWidgets.length === 0 ? (
         <div className="max-w-6xl mx-auto rounded-2xl border border-dashed border-[#DADCE0] dark:border-[#3C4043] py-12 px-6 text-center space-y-3">
           <p className="text-sm text-[#5F6368] dark:text-[#9AA0A6]">
-            All Home widgets are hidden.
+            {t('home.allHidden')}
           </p>
           <button
             type="button"
             onClick={() => setCustomizerOpen(true)}
             className="min-h-[40px] px-4 rounded-full hub-bg-accent text-xs font-medium"
           >
-            Choose widgets
+            {t('home.chooseWidgets')}
           </button>
         </div>
       ) : (

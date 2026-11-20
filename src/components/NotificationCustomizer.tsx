@@ -6,6 +6,7 @@ import {
   resolveNotificationConfig,
 } from '../lib/notifications';
 import { isNative } from '../lib/native';
+import { t } from '../lib/i18n';
 import { Dropdown, MultiDropdown } from './Dropdown';
 
 interface NotificationCustomizerProps {
@@ -84,7 +85,7 @@ export const NotificationCustomizer: React.FC<NotificationCustomizerProps> = ({
       <div className="flex items-center justify-between gap-2">
         <p className="text-sm font-medium text-[#1F1F1F] dark:text-[#E3E3E3] inline-flex items-center gap-2">
           <SlidersHorizontal className="w-4 h-4 hub-text-accent" />
-          Customize Notifications
+          {t('settings.customizeNotifications')}
         </p>
         <button
           type="button"

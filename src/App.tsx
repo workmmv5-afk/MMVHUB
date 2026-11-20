@@ -66,6 +66,7 @@ import {
   type CategorizedReminder,
 } from './lib/notifications';
 import { getTodayISO } from './lib/format';
+import { t } from './lib/i18n';
 import type {
   AccentTheme,
   CalendarEventRecord,
@@ -82,13 +83,13 @@ const NAV_ITEMS: {
   label: string;
   icon: React.ComponentType<{ className?: string }>;
 }[] = [
-  { id: 'home', label: 'Home', icon: Home },
-  { id: 'purchases', label: 'Purchases', icon: Receipt },
-  { id: 'habits', label: 'Habits', icon: Repeat },
-  { id: 'goals', label: 'Goals', icon: Target },
-  { id: 'tasks', label: 'Tasks', icon: CheckSquare },
-  { id: 'calendar', label: 'Calendar', icon: Calendar },
-  { id: 'settings', label: 'Settings', icon: Settings },
+  { id: 'home', label: 'nav.home', icon: Home },
+  { id: 'purchases', label: 'nav.purchases', icon: Receipt },
+  { id: 'habits', label: 'nav.habits', icon: Repeat },
+  { id: 'goals', label: 'nav.goals', icon: Target },
+  { id: 'tasks', label: 'nav.tasks', icon: CheckSquare },
+  { id: 'calendar', label: 'nav.calendar', icon: Calendar },
+  { id: 'settings', label: 'nav.settings', icon: Settings },
 ];
 
 const QUICK_ACCENT_SWATCHES: { id: AccentTheme; label: string; color: string }[] = [
@@ -518,7 +519,7 @@ const HubShell: React.FC = () => {
   }[] = [
     {
       id: 'home',
-      label: 'Home',
+      label: t('nav.home'),
       icon: Home,
       tintClass: 'text-[#1A73E8] dark:text-[#8AB4F8]',
       active: activeTab === 'home',
@@ -526,7 +527,7 @@ const HubShell: React.FC = () => {
     },
     {
       id: 'purchases',
-      label: 'Purchases',
+      label: t('nav.purchases'),
       icon: Receipt,
       tintClass: 'text-[#146C2E] dark:text-[#81C995]',
       active: activeTab === 'purchases' && purchasesSubTab === 'purchases',
@@ -534,7 +535,7 @@ const HubShell: React.FC = () => {
     },
     {
       id: 'subscriptions',
-      label: 'Subscriptions',
+      label: t('nav.subscriptions'),
       icon: CreditCard,
       tintClass: 'text-[#6750A4] dark:text-[#D0BCFF]',
       active: activeTab === 'purchases' && purchasesSubTab === 'subscriptions',
@@ -542,7 +543,7 @@ const HubShell: React.FC = () => {
     },
     {
       id: 'habits',
-      label: 'Habits',
+      label: t('nav.habits'),
       icon: Repeat,
       tintClass: 'text-[#B06000] dark:text-[#FDD663]',
       active: activeTab === 'habits',
@@ -550,7 +551,7 @@ const HubShell: React.FC = () => {
     },
     {
       id: 'goals',
-      label: 'Goals',
+      label: t('nav.goals'),
       icon: Target,
       tintClass: 'text-[#146C2E] dark:text-[#81C995]',
       active: activeTab === 'goals',
@@ -558,7 +559,7 @@ const HubShell: React.FC = () => {
     },
     {
       id: 'tasks',
-      label: 'Tasks',
+      label: t('nav.tasks'),
       icon: CheckSquare,
       tintClass: 'text-[#1A73E8] dark:text-[#8AB4F8]',
       active: activeTab === 'tasks',
@@ -566,7 +567,7 @@ const HubShell: React.FC = () => {
     },
     {
       id: 'calendar',
-      label: 'Calendar',
+      label: t('nav.calendar'),
       icon: Calendar,
       tintClass: 'text-[#C5221F] dark:text-[#F28B82]',
       active: activeTab === 'calendar',
@@ -574,7 +575,7 @@ const HubShell: React.FC = () => {
     },
     {
       id: 'themes',
-      label: 'Themes',
+      label: t('nav.themes'),
       icon: Palette,
       tintClass: 'text-[#6750A4] dark:text-[#D0BCFF]',
       active: activeTab === 'settings' && settingsSection === 'themes',
@@ -582,7 +583,7 @@ const HubShell: React.FC = () => {
     },
     {
       id: 'reminders',
-      label: 'Reminders',
+      label: t('nav.reminders'),
       icon: BellRing,
       tintClass: 'text-[#C5221F] dark:text-[#F28B82]',
       active: activeTab === 'settings' && settingsSection === 'notifications',
@@ -590,7 +591,7 @@ const HubShell: React.FC = () => {
     },
     {
       id: 'settings',
-      label: 'Settings',
+      label: t('nav.settings'),
       icon: Settings,
       tintClass: 'text-[#5F6368] dark:text-[#9AA0A6]',
       active: activeTab === 'settings' && !settingsSection,
@@ -630,7 +631,7 @@ const HubShell: React.FC = () => {
                     : 'border-transparent text-[#5F6368] dark:text-[#9AA0A6] hover:text-[#202124] dark:hover:text-[#E8EAED]'
                 }`}
               >
-                {item.label}
+                {t(item.label)}
               </button>
             );
           })}
@@ -710,7 +711,7 @@ const HubShell: React.FC = () => {
             >
               <div className="flex items-center justify-between gap-2">
                 <h2 className="text-sm font-semibold text-[#202124] dark:text-[#E8EAED]">
-                  Reminders
+                  {t('bell.title')}
                 </h2>
                 <button
                   type="button"
@@ -739,7 +740,7 @@ const HubShell: React.FC = () => {
                       : 'text-[#5F6368] dark:text-[#9AA0A6] hover:text-[#202124] dark:hover:text-[#E8EAED]'
                   }`}
                 >
-                  Upcoming ({upcomingReminders.length})
+                  {t('bell.upcoming')} ({upcomingReminders.length})
                 </button>
                 <button
                   type="button"
@@ -752,7 +753,7 @@ const HubShell: React.FC = () => {
                       : 'text-[#5F6368] dark:text-[#9AA0A6] hover:text-[#202124] dark:hover:text-[#E8EAED]'
                   }`}
                 >
-                  Missed ({missedReminders.length})
+                  {t('bell.missed')} ({missedReminders.length})
                 </button>
               </div>
 
@@ -761,13 +762,13 @@ const HubShell: React.FC = () => {
                 <div className="py-8 px-3 text-center">
                   <p className="text-sm font-medium text-[#202124] dark:text-[#E8EAED]">
                     {remindersTab === 'upcoming'
-                      ? 'No upcoming reminders'
-                      : 'No missed reminders'}
+                      ? t('bell.noUpcoming')
+                      : t('bell.noMissed')}
                   </p>
                   <p className="text-xs text-[#5F6368] dark:text-[#9AA0A6] mt-1">
                     {remindersTab === 'upcoming'
-                      ? `Scheduled tasks, habits, events, and renewals for the next ${notifConfig.bellHorizonDays} day${notifConfig.bellHorizonDays === 1 ? '' : 's'} appear here.`
-                      : 'You are caught up on overdue tasks, habits, events, and renewals.'}
+                      ? t('bell.upcomingHint', { n: notifConfig.bellHorizonDays })
+                      : t('bell.caughtUp')}
                   </p>
                 </div>
               ) : (
@@ -906,7 +907,7 @@ const HubShell: React.FC = () => {
                         }}
                         className="min-h-[36px] px-3 rounded-full text-xs font-medium border border-[#DADCE0] dark:border-[#3C4043] text-[#202124] dark:text-[#E8EAED] hover:bg-[#F1F3F4] dark:hover:bg-[#303134] whitespace-nowrap"
                       >
-                        Plan missed tasks
+                        {t('bell.planMissed')}
                       </button>
                     )}
                   <button
@@ -914,7 +915,7 @@ const HubShell: React.FC = () => {
                     onClick={() => void runReminderSweepNow()}
                     className="min-h-[36px] px-3 rounded-full text-xs font-medium hub-bg-soft whitespace-nowrap"
                   >
-                    Send Alerts
+                    {t('bell.sendAlerts')}
                   </button>
                 </div>
               </div>
@@ -1002,14 +1003,14 @@ const HubShell: React.FC = () => {
               {/* Theme Mode Switcher */}
               <div className="space-y-1.5">
                 <span className="block text-[11px] font-medium text-[#5F6368] dark:text-[#9AA0A6]">
-                  Appearance
+                  {t('account.appearance')}
                 </span>
                 <div className="grid grid-cols-3 p-1 rounded-full bg-[#F1F3F4] dark:bg-[#282A2C]">
                   {(
                     [
-                      { id: 'light', label: 'Light', icon: Sun },
-                      { id: 'dark', label: 'Dark', icon: Moon },
-                      { id: 'system', label: 'Auto', icon: Monitor },
+                      { id: 'light', label: t('account.light'), icon: Sun },
+                      { id: 'dark', label: t('account.dark'), icon: Moon },
+                      { id: 'system', label: t('account.auto'), icon: Monitor },
                     ] as const
                   ).map((opt) => {
                     const Icon = opt.icon;
@@ -1036,7 +1037,7 @@ const HubShell: React.FC = () => {
               {/* Quick Accent Color Dots */}
               <div className="space-y-1.5">
                 <span className="block text-[11px] font-medium text-[#5F6368] dark:text-[#9AA0A6]">
-                  Theme Color
+                  {t('account.themeColor')}
                 </span>
                 <div className="flex items-center justify-between gap-1.5">
                   {QUICK_ACCENT_SWATCHES.map((sw) => {
@@ -1077,7 +1078,7 @@ const HubShell: React.FC = () => {
                 >
                   <span className="inline-flex items-center gap-2.5">
                     <Search className="w-4 h-4 text-[#5F6368] dark:text-[#9AA0A6]" />
-                    <span>Quick Jump</span>
+                    <span>{t('account.quickJump')}</span>
                   </span>
                   <kbd className="text-[10px] font-mono text-[#5F6368] dark:text-[#9AA0A6] border border-[#DADCE0] dark:border-[#3C4043] rounded px-1.5 py-0.5">
                     ⌘K
@@ -1101,8 +1102,8 @@ const HubShell: React.FC = () => {
                     )}
                     <span>
                       {preferences.privacyBlur
-                        ? 'Show Amounts'
-                        : 'Privacy Blur'}
+                        ? t('account.showAmounts')
+                        : t('account.privacyBlur')}
                     </span>
                   </span>
                   {preferences.privacyBlur && (
@@ -1122,7 +1123,7 @@ const HubShell: React.FC = () => {
                     className="w-full min-h-[40px] px-3 rounded-xl text-left text-xs font-medium text-[#202124] dark:text-[#E8EAED] hover:bg-[#F1F3F4] dark:hover:bg-[#303134] flex items-center gap-2.5"
                   >
                     <Lock className="w-4 h-4 text-[#5F6368] dark:text-[#9AA0A6]" />
-                    <span>Lock Vault</span>
+                    <span>{t('account.lock')}</span>
                   </button>
                 )}
 
@@ -1133,7 +1134,7 @@ const HubShell: React.FC = () => {
                 >
                   <span className="inline-flex items-center gap-2.5">
                     <Settings className="w-4 h-4 text-[#5F6368] dark:text-[#9AA0A6]" />
-                    <span>Vault Settings</span>
+                    <span>{t('account.settings')}</span>
                   </span>
                   {activeTab === 'settings' && (
                     <Check className="w-3.5 h-3.5 hub-text-accent" />
@@ -1150,27 +1151,27 @@ const HubShell: React.FC = () => {
         <div className="bg-[#FEF7E0] dark:bg-[#413000] border-b border-[#F5E0A3] dark:border-[#6A4E00] px-4 py-1.5 text-xs text-[#6B4E00] dark:text-[#FCD663] flex items-center justify-center gap-2">
           <WifiOff className="w-3.5 h-3.5 shrink-0" />
           <span>
-            Offline Mode — Changes stay encrypted locally and sync when connected.
+            {t('offline.banner')}
           </span>
         </div>
       )}
 
       {isBackupDue(preferences) && activeTab !== 'settings' && (
         <div className="hub-bg-soft px-4 py-1.5 text-xs flex items-center justify-center gap-3">
-          <span>Backup due</span>
+          <span>{t('backup.due')}</span>
           <button
             type="button"
             onClick={() => navigateSettingsSection('data')}
             className="font-semibold underline underline-offset-2"
           >
-            Export now
+            {t('backup.export')}
           </button>
           <button
             type="button"
             onClick={() => void updatePreferences({ lastBackupAt: Date.now() })}
             className="opacity-70 hover:opacity-100"
           >
-            Later
+            {t('backup.later')}
           </button>
         </div>
       )}
@@ -1571,10 +1572,10 @@ const HubShell: React.FC = () => {
                 }
 
                 for (const nav of NAV_ITEMS) {
-                  if (!q || nav.label.toLowerCase().includes(q)) {
+                  if (!q || t(nav.label).toLowerCase().includes(q) || nav.label.includes(q)) {
                     actions.push({
                       id: `nav-${nav.id}`,
-                      label: `Go to ${nav.label}`,
+                      label: `→ ${t(nav.label)}`,
                       meta: 'Navigation',
                       onSelect: () => navigateTab(nav.id),
                     });

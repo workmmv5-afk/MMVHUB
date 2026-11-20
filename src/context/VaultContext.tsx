@@ -67,6 +67,7 @@ import { useAppActive } from '../hooks/useAppActive';
 import { applyTypography, resolveTypography } from '../lib/typography';
 import { isNative, MmvGoogleAuth, MmvWidgets, nativeGoogleIdToken } from '../lib/native';
 import { applyCustomAccent } from '../lib/accent';
+import { setLanguage } from '../lib/i18n';
 import { haptic, setHapticsEnabled } from '../lib/haptics';
 import {
   cancelAllNativeReminders,
@@ -487,6 +488,7 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
 
   if (phase === 'unlocked') {
     // Module-level formatter settings must be current before children render
+    setLanguage(preferences.language);
     setDisplayFormats(preferences.clockFormat, preferences.dateStyle);
     setHapticsEnabled(preferences.haptics ?? isNative());
   }

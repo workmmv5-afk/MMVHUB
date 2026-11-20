@@ -1,0 +1,16 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="widget_today_label">MMV Сегодня</string>
+    <string name="widget_today_desc">Задачи, привычки и события на сегодня</string>
+    <string name="widget_quick_label">MMV Быстро добавить</string>
+    <string name="widget_quick_desc">Добавить задачу, покупку, привычку или событие</string>
+    <string name="widget_spend_label">MMV Расходы</string>
+    <string name="widget_spend_desc">Расходы за месяц и бюджет</string>
+    <string name="widget_goals_label">MMV Цели</string>
+    <string name="widget_goals_desc">Прогресс по активным целям</string>
+    <string name="sc_new_task">Новая задача</string>
+    <string name="sc_new_spend">Добавить покупку</string>
+    <string name="sc_habits">Привычки на сегодня</string>
+    <string name="sc_new_event">Новое событие</string>
+    <string name="tile_label">MMV быстро добавить</string>
+</resources>

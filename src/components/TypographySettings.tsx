@@ -8,6 +8,7 @@ import {
   resolveTypography,
 } from '../lib/typography';
 import { Dropdown } from './Dropdown';
+import { LANGUAGES, t as tr } from '../lib/i18n';
 import { isNative } from '../lib/native';
 
 interface Props {
@@ -36,7 +37,7 @@ export const TypographySettings: React.FC<Props> = ({
       <div className="flex items-center justify-between gap-2">
         <h2 className="flex items-center gap-2 text-sm font-semibold text-[#1F1F1F] dark:text-[#E3E3E3]">
           <Type className="w-4 h-4 hub-text-accent" />
-          Typography & Display
+          {tr('settings.typography')}
         </h2>
         <button
           type="button"
@@ -52,6 +53,16 @@ export const TypographySettings: React.FC<Props> = ({
           Reset
         </button>
       </div>
+
+      <Dropdown
+        label={tr('settings.language')}
+        value={preferences.language ?? 'system'}
+        options={LANGUAGES.map((l) => ({
+          value: l.id,
+          label: l.id === 'system' ? tr('settings.languageSystem') : l.label,
+        }))}
+        onChange={(language) => void updatePreferences({ language })}
+      />
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <Dropdown

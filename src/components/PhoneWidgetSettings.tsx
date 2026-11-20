@@ -3,6 +3,7 @@ import { Smartphone } from 'lucide-react';
 import type { HubPreferences, PhoneWidgetConfig } from '../types';
 import { resolvePhoneWidgets } from '../lib/widgetSnapshot';
 import { isNative } from '../lib/native';
+import { t } from '../lib/i18n';
 import { Dropdown, MultiDropdown } from './Dropdown';
 
 const TODAY_KEYS = ['todayTasks', 'todayHabits', 'todayEvents', 'todayDoneItems'] as const;
@@ -58,7 +59,7 @@ export const PhoneWidgetSettings: React.FC<Props> = ({ preferences, updatePrefer
       <div className="flex items-center justify-between gap-2">
         <h2 className="flex items-center gap-2 text-sm font-semibold text-[#1F1F1F] dark:text-[#E3E3E3]">
           <Smartphone className="w-4 h-4 hub-text-accent" />
-          Phone Widgets
+          {t('settings.phoneWidgets')}
         </h2>
         <button
           type="button"

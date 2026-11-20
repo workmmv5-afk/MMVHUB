@@ -24,6 +24,7 @@ import { TypographySettings } from '../components/TypographySettings';
 import { SecuritySettings } from '../components/SecuritySettings';
 import { PhoneWidgetSettings } from '../components/PhoneWidgetSettings';
 import { DataSettings } from '../components/DataSettings';
+import { t } from '../lib/i18n';
 import { isNative, MmvWidgets } from '../lib/native';
 import { getWidgetMeta, resolveHomeWidgets } from '../lib/homeWidgets';
 import {
@@ -359,7 +360,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     <div className="space-y-6 max-w-6xl mx-auto">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight text-[#1F1F1F] dark:text-[#E3E3E3]">
-          Settings
+          {t('settings.title')}
         </h1>
         <p className="text-sm text-[#444746] dark:text-[#C4C7C5]">
           Themes, reminder alerts, Google Account sync, and vault encryption
@@ -729,7 +730,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           <div className="space-y-1">
             <div className="flex items-center gap-2 text-sm font-semibold text-[#1F1F1F] dark:text-[#E3E3E3]">
               <BellRing className="w-4 h-4 hub-text-accent" />
-              <span>Notification Reminders</span>
+              <span>{t('settings.notifications')}</span>
             </div>
             <p className="text-xs text-[#444746] dark:text-[#C4C7C5]">
               Browser & PWA notifications for overdue tasks, renewals, habits, and events.
@@ -983,7 +984,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           <div className="space-y-1">
             <div className="flex items-center gap-2 text-sm font-semibold text-[#1F1F1F] dark:text-[#E3E3E3]">
               <LayoutGrid className="w-4 h-4 hub-text-accent" />
-              <span>Home Widgets</span>
+              <span>{t('settings.homeWidgets')}</span>
             </div>
             <p className="text-xs text-[#444746] dark:text-[#C4C7C5]">
               Choose which cards appear on Home, their order, and their width.

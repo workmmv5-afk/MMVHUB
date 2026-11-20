@@ -3,6 +3,7 @@ import { Database, Download, RefreshCw } from 'lucide-react';
 import { useVault, type BackupModule } from '../context/VaultContext';
 import { getAllLocalRecords } from '../lib/indexeddb';
 import type { VaultRecordKind } from '../types';
+import { t } from '../lib/i18n';
 
 const MODULES: { id: BackupModule; label: string }[] = [
   { id: 'purchases', label: 'Purchases' },
@@ -102,7 +103,7 @@ export const DataSettings: React.FC = () => {
       <div className="flex items-center justify-between gap-2">
         <h2 className="flex items-center gap-2 text-sm font-semibold text-[#1F1F1F] dark:text-[#E3E3E3]">
           <Database className="w-4 h-4 hub-text-accent" />
-          Data
+          {t('settings.data')}
         </h2>
         <span className="text-xs font-mono text-[#5F6368] dark:text-[#9AA0A6]">{kb(total)} encrypted</span>
       </div>

@@ -20,6 +20,7 @@ import {
 } from '../lib/quickUnlock';
 import { copyWithAutoClear } from '../lib/clipboard';
 import { isNative } from '../lib/native';
+import { t } from '../lib/i18n';
 
 const EVENT_LABELS: Partial<Record<SecurityEvent, string>> = {
   'unlock-pin': 'Unlocked with PIN',
@@ -104,7 +105,7 @@ export const SecuritySettings: React.FC = () => {
     >
       <h2 className="flex items-center gap-2 text-sm font-semibold text-[#1F1F1F] dark:text-[#E3E3E3] mb-1">
         <ShieldCheck className="w-4 h-4 hub-text-accent" />
-        Security
+        {t('settings.security')}
       </h2>
 
       {error && (

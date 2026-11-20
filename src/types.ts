@@ -386,6 +386,7 @@ export interface HubPreferences {
   privacyBlur?: boolean;
   density?: UiDensity;
   customAccent?: string; // #RRGGBB when accentTheme === 'custom'
+  language?: 'system' | 'en' | 'uz' | 'ru';
   clockFormat?: '12h' | '24h';
   dateStyle?: 'mdy' | 'dmy' | 'iso';
   haptics?: boolean;

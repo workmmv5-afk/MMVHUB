@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo } from 'react';
 import { Check, Trash2, X } from 'lucide-react';
 import { useVault } from '../context/VaultContext';
+import { t as tr } from '../lib/i18n';
 import { formatShortDate, getDaysUntil, getTodayISO } from '../lib/format';
 import type { SnoozePreset } from '../types';
 
@@ -43,14 +44,14 @@ export const CarryoverSheet: React.FC<{ onClose: () => void }> = ({ onClose }) =
       >
         <div className="px-5 pt-5 pb-3 flex items-center justify-between">
           <h2 className="text-base font-semibold">
-            Carry over · {overdue.length}
+            {tr('carry.title')} · {overdue.length}
           </h2>
           <button type="button" onClick={onClose} aria-label="Close" className="min-h-[36px] min-w-[36px] rounded-full flex items-center justify-center hover:bg-[#F1F3F4] dark:hover:bg-[#282A2C]">
             <X className="w-4 h-4" />
           </button>
         </div>
         {overdue.length === 0 ? (
-          <p className="px-5 pb-8 text-sm text-[#5F6368] dark:text-[#9AA0A6]">All caught up 🎉</p>
+          <p className="px-5 pb-8 text-sm text-[#5F6368] dark:text-[#9AA0A6]">{tr('carry.caughtUp')}</p>
         ) : (
           <>
             <ul className="flex-1 overflow-y-auto px-5 divide-y divide-[#F1F3F4] dark:divide-[#282A2C]">
@@ -65,10 +66,10 @@ export const CarryoverSheet: React.FC<{ onClose: () => void }> = ({ onClose }) =
                       </span>
                     </div>
                     <div className="flex flex-wrap items-center gap-1.5">
-                      <button type="button" className={btn} onClick={() => toToday(t.id)}>Today</button>
+                      <button type="button" className={btn} onClick={() => toToday(t.id)}>{tr('common.today')}</button>
                       {(['tomorrow', 'weekend', 'nextweek'] as SnoozePreset[]).map((p) => (
                         <button key={p} type="button" className={btn} onClick={() => void snoozeTask(t.id, p)}>
-                          {p === 'tomorrow' ? 'Tomorrow' : p === 'weekend' ? 'Weekend' : 'Next week'}
+                          {p === 'tomorrow' ? tr('common.tomorrow') : p === 'weekend' ? 'Weekend' : 'Next week'}
                         </button>
                       ))}
                       <button type="button" aria-label={`Complete ${t.title}`} className={`${btn} hub-text-accent`} onClick={() => void toggleTaskCompleted(t.id)}>
@@ -90,14 +91,14 @@ export const CarryoverSheet: React.FC<{ onClose: () => void }> = ({ onClose }) =
                 }}
                 className="flex-1 min-h-[40px] rounded-full hub-bg-accent text-xs font-medium"
               >
-                All to today
+                {tr('carry.allToday')}
               </button>
               <button
                 type="button"
                 onClick={() => void batchUpdateTasks(overdue.map((t) => t.id), 'tomorrow')}
                 className="flex-1 min-h-[40px] rounded-full border border-[#DADCE0] dark:border-[#444746] text-xs font-medium"
               >
-                All to tomorrow
+                {tr('carry.allTomorrow')}
               </button>
             </div>
           </>
