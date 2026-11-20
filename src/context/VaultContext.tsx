@@ -1511,6 +1511,10 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
         ]),
         goalId:
           'goalId' in data ? data.goalId || undefined : existingItem?.goalId,
+        routine:
+          'routine' in data ? data.routine?.trim().slice(0, 30) || undefined : existingItem?.routine,
+        routineOrder:
+          'routineOrder' in data ? data.routineOrder : existingItem?.routineOrder,
         id: data.id || createRecordId('hab'),
         name: data.name.trim(),
         mode: data.mode ?? existingItem?.mode ?? 'build',

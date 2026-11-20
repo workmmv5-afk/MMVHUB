@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { tx } from '../lib/i18n';
 import {
+  ListChecks,
   Archive,
   ArchiveRestore,
   Check,
@@ -35,6 +36,7 @@ import {
 interface HabitsViewProps {
   onNewHabit: () => void;
   onEditHabit: (habit: HabitRecord) => void;
+  onStartRoutine?: () => void;
 }
 
 type HabitViewMode = 'focus' | 'matrix' | 'calendar';
@@ -66,6 +68,7 @@ const COLOR_PARTIAL: Record<CalendarColor, string> = {
 export const HabitsView: React.FC<HabitsViewProps> = ({
   onNewHabit,
   onEditHabit,
+  onStartRoutine,
 }) => {
   const {
     habits,
@@ -248,13 +251,24 @@ export const HabitsView: React.FC<HabitsViewProps> = ({
             </span>
           </div>
 
+          {onStartRoutine && habits.some((h) => h.routine && !h.archived) && (
+            <button
+              type="button"
+              onClick={onStartRoutine}
+              className="min-h-[36px] px-3.5 rounded-full border border-[#DADCE0] dark:border-[#3C4043] text-xs font-medium inline-flex items-center gap-1.5 whitespace-nowrap shrink-0"
+            >
+              <ListChecks className="w-3.5 h-3.5" />
+              <span>{tx('Routines')}</span>
+            </button>
+          )}
+
           <button
             type="button"
             onClick={onNewHabit}
             className="min-h-[36px] px-3.5 rounded-full hub-bg-accent text-xs font-medium inline-flex items-center gap-1.5 hover:opacity-95 transition-opacity whitespace-nowrap shrink-0"
           >
             <Plus className="w-3.5 h-3.5" />
-            <span>New Goal</span>
+            <span>{tx('New Habit Goal')}</span>
           </button>
         </div>
 

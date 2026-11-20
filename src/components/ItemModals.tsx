@@ -1220,6 +1220,8 @@ export const HabitModal: React.FC<HabitModalProps> = ({
 }) => {
   const [name, setName] = useState(initial?.name ?? '');
   const [goalId, setGoalId] = useState(initial?.goalId ?? '');
+  const [routine, setRoutine] = useState(initial?.routine ?? '');
+  const [routineOrder, setRoutineOrder] = useState(String(initial?.routineOrder ?? ''));
   const [mode, setMode] = useState<HabitMode>(initial?.mode ?? 'build');
   const [cadence, setCadence] = useState<HabitCadence>(
     initial?.cadence ?? 'daily'
@@ -1330,6 +1332,8 @@ export const HabitModal: React.FC<HabitModalProps> = ({
         targetPerDay: target,
         unit: unit.trim() || undefined,
         goalId: goalId || undefined,
+        routine: routine.trim() || undefined,
+        routineOrder: routine.trim() && routineOrder ? Number(routineOrder) : undefined,
       });
       onClose();
     } catch (err) {
@@ -1760,6 +1764,44 @@ export const HabitModal: React.FC<HabitModalProps> = ({
           value={goalId}
           onChange={setGoalId}
         />
+
+        <div className="grid grid-cols-[1fr_88px] gap-3">
+          <div className="space-y-1.5">
+            <label htmlFor="hab-routine" className="block text-xs font-medium text-[#444746] dark:text-[#C4C7C5]">
+              {tx('Routine (optional)')}
+            </label>
+            <input
+              id="hab-routine"
+              type="text"
+              list="hab-routine-list"
+              maxLength={30}
+              value={routine}
+              onChange={(e) => setRoutine(e.target.value)}
+              placeholder={tx('e.g. Morning')}
+              className="w-full min-h-[44px] rounded-xl border border-[#747775] dark:border-[#8E918F] bg-transparent px-3.5 text-sm"
+            />
+            <datalist id="hab-routine-list">
+              {[...new Set(allHabits.map((h) => h.routine).filter(Boolean))].map((r) => (
+                <option key={r} value={r} />
+              ))}
+            </datalist>
+          </div>
+          <div className="space-y-1.5">
+            <label htmlFor="hab-routine-order" className="block text-xs font-medium text-[#444746] dark:text-[#C4C7C5]">
+              {tx('Step')}
+            </label>
+            <input
+              id="hab-routine-order"
+              type="number"
+              min={1}
+              max={50}
+              disabled={!routine.trim()}
+              value={routineOrder}
+              onChange={(e) => setRoutineOrder(e.target.value)}
+              className="w-full min-h-[44px] rounded-xl border border-[#747775] dark:border-[#8E918F] bg-transparent px-3 font-mono text-sm disabled:opacity-40"
+            />
+          </div>
+        </div>
 
         {initial && onJournal && onLog && (
           <HabitInsights

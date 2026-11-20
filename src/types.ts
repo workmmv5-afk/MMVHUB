@@ -145,6 +145,8 @@ export interface HabitRecord {
   logs: Record<string, number>;
   freezeDates?: string[]; // Streak freeze/rest YYYY-MM-DD dates
   journal?: Record<string, string>; // YYYY-MM-DD -> short reflection
+  routine?: string; // e.g. "Morning" — run step by step in the routine runner
+  routineOrder?: number;
   archived?: boolean;
   createdAt: number;
   updatedAt: number;

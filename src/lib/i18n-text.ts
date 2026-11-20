@@ -129,4 +129,17 @@ export const TEXT: Record<string, Pair> = {
   "New Calendar Event": ["Yangi tadbir", "Новое событие"],
   "Edit Goal": ["Maqsadni tahrirlash", "Изменить цель"],
   "New Goal": ["Yangi maqsad", "Новая цель"],
+  Routines: ["Tartiblar", "Ритуалы"],
+  "Routine (optional)": ["Tartib (ixtiyoriy)", "Ритуал (необязательно)"],
+  "e.g. Morning": ["masalan, Ertalab", "например, Утро"],
+  Step: ["Qadam", "Шаг"],
+  Skip: ["O‘tkazib yuborish", "Пропустить"],
+  Done: ["Bajarildi", "Готово"],
+  done: ["bajarildi", "выполнено"],
+  Finish: ["Yakunlash", "Завершить"],
+  "Start routine": ["Tartibni boshlash", "Начать ритуал"],
+  "Give habits a routine name (e.g. Morning) in the habit editor to run them step by step.": [
+    "Odatlarni ketma-ket bajarish uchun odat muharririda tartib nomini kiriting (masalan, Ertalab).",
+    "Укажите название ритуала (например, Утро) в редакторе привычки, чтобы выполнять их по шагам.",
+  ],
 };

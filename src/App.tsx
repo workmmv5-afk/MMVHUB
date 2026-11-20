@@ -68,6 +68,7 @@ const CalendarEventModal = named(modals, 'CalendarEventModal');
 const GoalModal = named(modals, 'GoalModal');
 const ReviewSheet = named(() => import('./components/ReviewSheet'), 'ReviewSheet');
 const CarryoverSheet = named(() => import('./components/CarryoverSheet'), 'CarryoverSheet');
+const RoutineRunner = named(() => import('./components/RoutineRunner'), 'RoutineRunner');
 
 const PageFallback: React.FC = () => (
   <div className="py-24 flex justify-center" aria-busy="true">
@@ -81,7 +82,7 @@ import {
   type CategorizedReminder,
 } from './lib/notifications';
 import { getTodayISO } from './lib/format';
-import { t } from './lib/i18n';
+import { t, tx } from './lib/i18n';
 import type {
   AccentTheme,
   CalendarEventRecord,
@@ -210,6 +211,7 @@ const HubShell: React.FC = () => {
   const [commandOpen, setCommandOpen] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
   const [carryoverOpen, setCarryoverOpen] = useState(false);
+  const [routineOpen, setRoutineOpen] = useState(false);
   const [snoozeMenuFor, setSnoozeMenuFor] = useState<string | null>(null);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [commandQuery, setCommandQuery] = useState('');
@@ -1259,6 +1261,7 @@ const HubShell: React.FC = () => {
             <HabitsView
               onNewHabit={() => setHabitModal({ open: true, item: null })}
               onEditHabit={(item) => setHabitModal({ open: true, item })}
+              onStartRoutine={() => setRoutineOpen(true)}
             />
           )}
           {activeTab === 'goals' && (
@@ -1320,6 +1323,7 @@ const HubShell: React.FC = () => {
       <Suspense fallback={null}>
         {reviewOpen && <ReviewSheet onClose={() => setReviewOpen(false)} />}
         {carryoverOpen && <CarryoverSheet onClose={() => setCarryoverOpen(false)} />}
+        {routineOpen && <RoutineRunner onClose={() => setRoutineOpen(false)} />}
       </Suspense>
       {shortcutsOpen && <ShortcutsSheet onClose={() => setShortcutsOpen(false)} />}
 
@@ -1540,6 +1544,14 @@ const HubShell: React.FC = () => {
                     label: 'Review & Insights',
                     meta: 'Week · Month · Year',
                     onSelect: () => setReviewOpen(true),
+                  });
+                }
+                if (!q || 'start routine'.includes(q) || 'routines'.includes(q)) {
+                  actions.push({
+                    id: 'act-routine',
+                    label: tx('Start routine'),
+                    meta: tx('Routines'),
+                    onSelect: () => setRoutineOpen(true),
                   });
                 }
                 if (!q || 'plan overdue'.includes(q) || 'carry over'.includes(q)) {
