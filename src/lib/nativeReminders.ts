@@ -337,7 +337,9 @@ export async function syncNativeReminders(
     body: p.body,
     channelId,
     smallIcon: 'ic_stat_mmv',
-    schedule: { at: p.at, allowWhileIdle: true },
+    // Battery: only time-critical alerts may wake the phone from Doze at the
+    // exact minute; habits, digests, renewals & goals are batched by Android.
+    schedule: { at: p.at, allowWhileIdle: p.urgent || p.kind === 'task' || p.kind === 'event' },
     actionTypeId: cfg.actionButtons
       ? p.kind === 'task' && p.recordId
         ? 'TASK'

@@ -3,6 +3,10 @@ import { Smartphone } from 'lucide-react';
 import type { HubPreferences, PhoneWidgetConfig } from '../types';
 import { resolvePhoneWidgets } from '../lib/widgetSnapshot';
 import { isNative } from '../lib/native';
+import { Dropdown, MultiDropdown } from './Dropdown';
+
+const TODAY_KEYS = ['todayTasks', 'todayHabits', 'todayEvents', 'todayDoneItems'] as const;
+const QUICK_KEYS = ['task', 'purchase', 'habit', 'event'] as const;
 
 interface Props {
   preferences: HubPreferences;
@@ -40,11 +44,6 @@ export const PhoneWidgetSettings: React.FC<Props> = ({ preferences, updatePrefer
     void updatePreferences((prev) => ({
       phoneWidgets: { ...prev.phoneWidgets, ...next },
     }));
-  const patchQuick = (key: keyof NonNullable<PhoneWidgetConfig['quick']>) =>
-    void updatePreferences((prev) => {
-      const cur = resolvePhoneWidgets(prev).quick;
-      return { phoneWidgets: { ...prev.phoneWidgets, quick: { ...cur, [key]: !cur[key] } } };
-    });
 
   const accentColor = ACCENTS.find((a) => a.id === c.accent)?.color ?? 'var(--hub-accent)';
   const previewDark =
@@ -134,57 +133,43 @@ export const PhoneWidgetSettings: React.FC<Props> = ({ preferences, updatePrefer
           />
         </div>
 
-        <div className="space-y-1.5">
-          <span className={label}>Accent</span>
-          <div className="flex items-center gap-2">
-            {ACCENTS.map((a) => (
-              <button
-                key={a.id}
-                type="button"
-                aria-label={a.label}
-                aria-pressed={c.accent === a.id}
-                title={a.label}
-                onClick={() => patch({ accent: a.id })}
-                className={`w-7 h-7 rounded-full border border-black/10 ${
-                  c.accent === a.id ? 'ring-2 ring-offset-2 ring-[#202124] dark:ring-[#E8EAED] dark:ring-offset-[#1E1F20]' : ''
-                }`}
-                style={{ background: a.color }}
-              />
-            ))}
-          </div>
-        </div>
+        <Dropdown
+          label="Accent"
+          value={c.accent}
+          options={ACCENTS.map((a) => ({ value: a.id, label: a.label, swatch: a.color }))}
+          onChange={(accent) => patch({ accent })}
+        />
 
-        <div className="space-y-1.5">
-          <span className={label}>Today rows</span>
-          <div className="grid grid-cols-5 p-1 rounded-full bg-[#F1F3F4] dark:bg-[#282A2C]">
-            {[1, 2, 3, 4, 5].map((n) => (
-              <button key={n} type="button" onClick={() => patch({ rows: n })} className={seg(c.rows === n)}>
-                {n}
-              </button>
-            ))}
-          </div>
-        </div>
+        <Dropdown
+          label="Today rows"
+          value={c.rows}
+          options={[1, 2, 3, 4, 5].map((n) => ({ value: n, label: `${n} row${n === 1 ? '' : 's'}` }))}
+          onChange={(rows) => patch({ rows })}
+        />
       </div>
 
-      <div className="space-y-1.5">
-        <span className={label}>Today shows</span>
-        <div className="flex flex-wrap gap-2">
-          <button type="button" className={chip(c.todayTasks)} onClick={() => patch({ todayTasks: !c.todayTasks })}>Tasks</button>
-          <button type="button" className={chip(c.todayHabits)} onClick={() => patch({ todayHabits: !c.todayHabits })}>Habits</button>
-          <button type="button" className={chip(c.todayEvents)} onClick={() => patch({ todayEvents: !c.todayEvents })}>Events</button>
-          <button type="button" className={chip(c.todayDoneItems)} onClick={() => patch({ todayDoneItems: !c.todayDoneItems })}>Completed</button>
-        </div>
-      </div>
-
-      <div className="space-y-1.5">
-        <span className={label}>Quick-add buttons</span>
-        <div className="flex flex-wrap gap-2">
-          {(['task', 'purchase', 'habit', 'event'] as const).map((k) => (
-            <button key={k} type="button" className={`${chip(c.quick[k])} capitalize`} onClick={() => patchQuick(k)}>
-              {k}
-            </button>
-          ))}
-        </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <MultiDropdown
+          label="Today shows"
+          values={TODAY_KEYS.filter((k) => c[k])}
+          options={[
+            { value: 'todayTasks', label: 'Tasks' },
+            { value: 'todayHabits', label: 'Habits' },
+            { value: 'todayEvents', label: 'Events' },
+            { value: 'todayDoneItems', label: 'Completed items' },
+          ]}
+          onChange={(vals) =>
+            patch(Object.fromEntries(TODAY_KEYS.map((k) => [k, vals.includes(k)])) as Partial<PhoneWidgetConfig>)
+          }
+        />
+        <MultiDropdown
+          label="Quick-add buttons"
+          values={QUICK_KEYS.filter((k) => c.quick[k])}
+          options={QUICK_KEYS.map((k) => ({ value: k, label: k[0].toUpperCase() + k.slice(1) }))}
+          onChange={(vals) =>
+            patch({ quick: Object.fromEntries(QUICK_KEYS.map((k) => [k, vals.includes(k)])) as PhoneWidgetConfig['quick'] })
+          }
+        />
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

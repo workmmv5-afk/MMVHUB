@@ -269,6 +269,9 @@ export const HomeView: React.FC<HomeViewProps> = ({
     let finished = false;
     const tick = () => {
       if (finished) return;
+      // Battery: skip repaints while hidden; the end time is absolute, so
+      // the first tick after returning catches up exactly.
+      if (document.hidden && endsAt - Date.now() > 1000) return;
       const remaining = Math.max(0, Math.ceil((endsAt - Date.now()) / 1000));
       setSecondsLeft(remaining);
       if (remaining <= 0) {
@@ -278,8 +281,12 @@ export const HomeView: React.FC<HomeViewProps> = ({
       }
     };
     tick();
-    const id = window.setInterval(tick, 500);
-    return () => window.clearInterval(id);
+    const id = window.setInterval(tick, 1000);
+    document.addEventListener('visibilitychange', tick);
+    return () => {
+      window.clearInterval(id);
+      document.removeEventListener('visibilitychange', tick);
+    };
   }, [endsAt]);
 
   const startOrPauseTimer = () => {

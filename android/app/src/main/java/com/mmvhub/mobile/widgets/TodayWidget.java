@@ -28,7 +28,8 @@ public class TodayWidget extends AppWidgetProvider {
         JSONObject cfg = WidgetKit.config(snap);
         WidgetKit.Theme t = WidgetKit.theme(ctx, cfg);
         JSONObject today = snap.optJSONObject("today");
-        boolean locked = snap.optBoolean("locked", false) || today == null;
+        boolean stale = WidgetKit.isStale(snap);
+        boolean locked = snap.optBoolean("locked", false) || today == null || stale;
         int maxRows = Math.max(1, Math.min(5, cfg.optInt("rows", 4)));
 
         for (int id : ids) {
@@ -48,7 +49,9 @@ public class TodayWidget extends AppWidgetProvider {
                 v.setViewVisibility(R.id.progress, View.GONE);
                 for (int r : ROWS) v.setViewVisibility(r, View.GONE);
                 v.setViewVisibility(R.id.empty, View.VISIBLE);
-                v.setTextViewText(R.id.empty, snap.optString("lockedText", "Open MMV-HUB to load your day"));
+                v.setTextViewText(R.id.empty, stale
+                    ? "New day — open MMV-HUB to refresh"
+                    : snap.optString("lockedText", "Open MMV-HUB to load your day"));
                 v.setOnClickPendingIntent(R.id.empty, WidgetKit.link(ctx, "mmvhub://open/home", WidgetKit.rc(id, 2)));
                 mgr.updateAppWidget(id, v);
                 continue;

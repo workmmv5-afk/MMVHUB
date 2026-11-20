@@ -1,5 +1,6 @@
 package com.mmvhub.mobile.widgets;
 
+import android.app.AlarmManager;
 import android.app.PendingIntent;
 import android.appwidget.AppWidgetManager;
 import android.content.ComponentName;
@@ -17,6 +18,9 @@ import com.mmvhub.mobile.MainActivity;
 import com.mmvhub.mobile.R;
 
 import org.json.JSONObject;
+
+import java.util.Calendar;
+import java.util.Locale;
 
 /**
  * Shared storage, theming and click helpers for MMV-HUB home-screen widgets.
@@ -56,11 +60,47 @@ public final class WidgetKit {
 
     /** Re-render every installed MMV-HUB widget. */
     public static void updateAll(Context ctx) {
+        scheduleMidnightRefresh(ctx);
         AppWidgetManager mgr = AppWidgetManager.getInstance(ctx);
         TodayWidget.render(ctx, mgr, ids(ctx, mgr, TodayWidget.class));
         QuickWidget.render(ctx, mgr, ids(ctx, mgr, QuickWidget.class));
         SpendWidget.render(ctx, mgr, ids(ctx, mgr, SpendWidget.class));
         GoalsWidget.render(ctx, mgr, ids(ctx, mgr, GoalsWidget.class));
+    }
+
+    /** Local date of the device as YYYY-MM-DD. */
+    public static String today() {
+        Calendar c = Calendar.getInstance();
+        return String.format(Locale.US, "%04d-%02d-%02d",
+            c.get(Calendar.YEAR), c.get(Calendar.MONTH) + 1, c.get(Calendar.DAY_OF_MONTH));
+    }
+
+    /** Snapshot was written on an earlier day → "today" content is stale. */
+    public static boolean isStale(JSONObject snap) {
+        String day = snap.optString("day", "");
+        return !day.isEmpty() && !day.equals(today());
+    }
+
+    /**
+     * Battery: widgets no longer poll (updatePeriodMillis = 0). One inexact,
+     * non-waking alarm just after midnight re-renders them so a stale "Today"
+     * shows "open to refresh" instead of yesterday's list.
+     */
+    private static void scheduleMidnightRefresh(Context ctx) {
+        AlarmManager am = (AlarmManager) ctx.getSystemService(Context.ALARM_SERVICE);
+        if (am == null) return;
+        Calendar c = Calendar.getInstance();
+        c.add(Calendar.DAY_OF_MONTH, 1);
+        c.set(Calendar.HOUR_OF_DAY, 0);
+        c.set(Calendar.MINUTE, 1);
+        c.set(Calendar.SECOND, 0);
+        Intent i = new Intent(ctx, TodayWidget.class);
+        i.setAction(AppWidgetManager.ACTION_APPWIDGET_UPDATE);
+        i.putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS,
+            AppWidgetManager.getInstance(ctx).getAppWidgetIds(new ComponentName(ctx, TodayWidget.class)));
+        PendingIntent pi = PendingIntent.getBroadcast(ctx, 9001, i,
+            PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        am.set(AlarmManager.RTC, c.getTimeInMillis(), pi);
     }
 
     private static int[] ids(Context ctx, AppWidgetManager mgr, Class<?> cls) {

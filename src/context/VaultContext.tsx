@@ -61,6 +61,7 @@ import {
   subscribeToCloudVault,
 } from '../lib/syncEngine';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
+import { useAppActive } from '../hooks/useAppActive';
 import { applyTypography, resolveTypography } from '../lib/typography';
 import { isNative, MmvWidgets } from '../lib/native';
 import { applyCustomAccent } from '../lib/accent';
@@ -338,6 +339,7 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
   const isOnline = useOnlineStatus();
+  const appActive = useAppActive();
   const [phase, setPhase] = useState<VaultPhase>('loading');
   const [vaultMeta, setVaultMeta] = useState<LocalVaultMeta | null>(null);
   const [user, setUser] = useState<User | null>(null);
@@ -374,6 +376,10 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
   });
 
   const activeKeyRef = useRef<CryptoKey | null>(null);
+  const decryptCacheRef = useRef<{ key: CryptoKey | null; map: Map<string, { iv: string; data: unknown }> }>({
+    key: null,
+    map: new Map(),
+  });
   // PIN / fingerprint wrapping keys from this session (lets a passphrase
   // change re-wrap quick unlock without asking for the PIN again).
   const quickKeysRef = useRef<{ pinKey?: CryptoKey; bioKey?: CryptoKey }>({});
@@ -491,6 +497,22 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const reloadAndDecryptRecords = useCallback(async (key: CryptoKey) => {
     const records = await getAllLocalRecords();
+    // Battery/CPU: every write uses a fresh random IV, so an unchanged IV
+    // means an unchanged record → reuse the cached plaintext.
+    const cache = decryptCacheRef.current;
+    if (cache.key !== key) {
+      cache.key = key;
+      cache.map.clear();
+    }
+    const seen = new Set<string>();
+    const dec = async <T,>(rec: LocalVaultRecord): Promise<T> => {
+      seen.add(rec.id);
+      const hit = cache.map.get(rec.id);
+      if (hit && hit.iv === rec.iv) return hit.data as T;
+      const data = await decryptPayload<T>(key, rec.iv, rec.ciphertext);
+      cache.map.set(rec.id, { iv: rec.iv, data });
+      return data;
+    };
     const nextPurchases: PurchaseRecord[] = [];
     const nextSubscriptions: SubscriptionRecord[] = [];
     const nextHabits: HabitRecord[] = [];
@@ -507,50 +529,42 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
       try {
         if (rec.kind === 'purchase') {
           nextPurchases.push(
-            await decryptPayload<PurchaseRecord>(key, rec.iv, rec.ciphertext)
+            await dec<PurchaseRecord>(rec)
           );
         } else if (rec.kind === 'subscription') {
           nextSubscriptions.push(
-            await decryptPayload<SubscriptionRecord>(
-              key,
-              rec.iv,
-              rec.ciphertext
-            )
+            await dec<SubscriptionRecord>(rec)
           );
         } else if (rec.kind === 'habit') {
           nextHabits.push(
-            await decryptPayload<HabitRecord>(key, rec.iv, rec.ciphertext)
+            await dec<HabitRecord>(rec)
           );
         } else if (rec.kind === 'task') {
           nextTasks.push(
-            await decryptPayload<TaskRecord>(key, rec.iv, rec.ciphertext)
+            await dec<TaskRecord>(rec)
           );
         } else if (rec.kind === 'tasklist') {
           nextTaskLists.push(
-            await decryptPayload<TaskListRecord>(key, rec.iv, rec.ciphertext)
+            await dec<TaskListRecord>(rec)
           );
         } else if (rec.kind === 'calendar') {
           nextCalendarEvents.push(
-            await decryptPayload<CalendarEventRecord>(
-              key,
-              rec.iv,
-              rec.ciphertext
-            )
+            await dec<CalendarEventRecord>(rec)
           );
         } else if (rec.kind === 'goal') {
           nextGoals.push(
-            await decryptPayload<GoalRecord>(key, rec.iv, rec.ciphertext)
+            await dec<GoalRecord>(rec)
           );
         } else if (rec.kind === 'prefs') {
-          nextPrefs = await decryptPayload<HubPreferences>(
-            key,
-            rec.iv,
-            rec.ciphertext
-          );
+          nextPrefs = await dec<HubPreferences>(rec);
         }
       } catch {
         // Ignore records encrypted with mismatched key
       }
+    }
+
+    for (const id of [...decryptCacheRef.current.map.keys()]) {
+      if (!seen.has(id)) decryptCacheRef.current.map.delete(id);
     }
 
     nextPurchases.sort(
@@ -731,6 +745,9 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
       setSyncStatus((prev) => ({ ...prev, phase: 'offline' }));
       return;
     }
+    // Battery: no live Firestore socket while the app is in the background.
+    // Re-subscribing on resume delivers a fresh snapshot (catch-up sync).
+    if (!appActive) return;
 
     let unsubscribe: (() => void) | undefined;
     let cancelled = false;
@@ -764,7 +781,7 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
       cancelled = true;
       if (unsubscribe) unsubscribe();
     };
-  }, [authReady, phase, user, isOnline, runPushSync, reloadAndDecryptRecords]);
+  }, [authReady, phase, user, isOnline, appActive, runPushSync, reloadAndDecryptRecords]);
 
   /** Vault can be locked when something other than "open automatically" protects it. */
   const canLock =
@@ -773,6 +790,7 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
   const lockVault = useCallback(() => {
     if (activeKeyRef.current) logSecurityEvent('locked');
     activeKeyRef.current = null;
+    decryptCacheRef.current = { key: null, map: new Map() };
     quickKeysRef.current = {};
     setPurchases([]);
     setSubscriptions([]);
@@ -2606,6 +2624,22 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
   );
 
   updatePreferencesRef.current = updatePreferences;
+
+  // Battery tip (once): pure-black dark mode on phones with OLED screens
+  useEffect(() => {
+    if (phase !== 'unlocked' || !isNative() || preferences.oledDark) return;
+    if (!document.documentElement.classList.contains('dark')) return;
+    if (localStorage.getItem('mmv_oled_tip')) return;
+    localStorage.setItem('mmv_oled_tip', '1');
+    const t = window.setTimeout(
+      () =>
+        showSnackbar('Save battery with pure-black dark mode?', 'Turn on', () =>
+          updatePreferences({ oledDark: true })
+        ),
+      4000
+    );
+    return () => window.clearTimeout(t);
+  }, [phase, theme, preferences.oledDark, showSnackbar, updatePreferences]);
 
   const sendTestNotification = useCallback(async (): Promise<boolean> => {
     const perm =

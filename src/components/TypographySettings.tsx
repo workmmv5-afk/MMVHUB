@@ -7,6 +7,7 @@ import {
   SANS_FONTS,
   resolveTypography,
 } from '../lib/typography';
+import { Dropdown } from './Dropdown';
 import { isNative } from '../lib/native';
 
 interface Props {
@@ -52,74 +53,28 @@ export const TypographySettings: React.FC<Props> = ({
         </button>
       </div>
 
-      <div className="space-y-1.5">
-        <span className="block text-[11px] font-medium text-[#444746] dark:text-[#C4C7C5]">
-          Text font
-        </span>
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-          {SANS_FONTS.map((f) => (
-            <button
-              key={f.id}
-              type="button"
-              aria-pressed={t.sans === f.id}
-              onClick={() => void updatePreferences({ fontSans: f.id })}
-              className={chip(t.sans === f.id)}
-              style={{ fontFamily: f.stack }}
-            >
-              <span className="block text-sm font-medium">{f.label}</span>
-              <span className="block text-[11px] opacity-75">Aa 123</span>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="space-y-1.5">
-        <span className="block text-[11px] font-medium text-[#444746] dark:text-[#C4C7C5]">
-          Numbers & code font
-        </span>
-        <div className="grid grid-cols-2 gap-2">
-          {MONO_FONTS.map((f) => (
-            <button
-              key={f.id}
-              type="button"
-              aria-pressed={t.mono === f.id}
-              onClick={() => void updatePreferences({ fontMono: f.id })}
-              className={chip(t.mono === f.id)}
-              style={{ fontFamily: f.stack }}
-            >
-              <span className="block text-sm">{f.label}</span>
-              <span className="block text-[11px] opacity-75 tabular-nums">$1,280.50</span>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="space-y-1.5">
-        <span className="block text-[11px] font-medium text-[#444746] dark:text-[#C4C7C5]">
-          Size
-        </span>
-        <div
-          role="radiogroup"
-          aria-label="Text size"
-          className="grid grid-cols-4 p-1 rounded-full bg-[#F1F3F4] dark:bg-[#282A2C]"
-        >
-          {FONT_SCALES.map((s) => (
-            <button
-              key={s.id}
-              type="button"
-              role="radio"
-              aria-checked={t.scale === s.id}
-              onClick={() => void updatePreferences({ fontScale: s.id })}
-              className={`min-h-[34px] rounded-full text-xs font-semibold transition-colors ${
-                t.scale === s.id
-                  ? 'bg-white dark:bg-[#1E1F20] text-[#202124] dark:text-[#E8EAED] shadow-2xs'
-                  : 'text-[#5F6368] dark:text-[#9AA0A6]'
-              }`}
-            >
-              {s.label}
-            </button>
-          ))}
-        </div>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <Dropdown
+          label="Text font"
+          value={t.sans}
+          options={SANS_FONTS.map((f) => ({ value: f.id, label: f.label, style: { fontFamily: f.stack } }))}
+          onChange={(fontSans) => void updatePreferences({ fontSans })}
+        />
+        <Dropdown
+          label="Numbers & code"
+          value={t.mono}
+          options={MONO_FONTS.map((f) => ({ value: f.id, label: f.label, style: { fontFamily: f.stack } }))}
+          onChange={(fontMono) => void updatePreferences({ fontMono })}
+        />
+        <Dropdown
+          label="Size"
+          value={t.scale}
+          options={FONT_SCALES.map((s) => ({
+            value: s.id,
+            label: { S: "Small", M: "Default", L: "Large", XL: "Extra large" }[s.label] ?? s.label,
+          }))}
+          onChange={(fontScale) => void updatePreferences({ fontScale })}
+        />
       </div>
 
       <button

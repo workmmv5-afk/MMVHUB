@@ -67,6 +67,9 @@ export function stopAmbient(): void {
         }
         n.disconnect();
       }
+      // Battery: an idle-but-running AudioContext keeps the audio hardware
+      // awake on Android. Suspend it until the next focus session.
+      if (nodes.length === 0) void ctx?.suspend().catch(() => undefined);
     }, 700);
   }
   nodes = [];

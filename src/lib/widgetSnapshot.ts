@@ -87,7 +87,7 @@ export function buildWidgetSnapshot(params: {
     quick: cfg.quick,
   };
   if (params.locked) {
-    return { v: 1, updatedAt: Date.now(), locked: true, lockedText: 'Unlock MMV-HUB to see your day', config };
+    return { v: 1, day: getTodayISO(), updatedAt: Date.now(), locked: true, lockedText: 'Unlock MMV-HUB to see your day', config };
   }
 
   const { tasks, habits, calendarEvents, subscriptions, purchases, goals, preferences } = params;
@@ -166,6 +166,7 @@ export function buildWidgetSnapshot(params: {
 
   return {
     v: 1,
+    day: today,
     updatedAt: Date.now(),
     locked: false,
     config,
