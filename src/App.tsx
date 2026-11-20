@@ -36,6 +36,7 @@ import { VaultGate } from './components/VaultGate';
 import { PWAInstallButton } from './components/PWAInstallButton';
 import { LogoWordmark } from './components/Logo';
 import { BiometricOffer } from './components/SecuritySettings';
+import { ModeChooser } from './components/ModeChooser';
 import { isBackupDue } from './components/DataSettings';
 
 import { ShortcutsSheet, useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
@@ -59,6 +60,7 @@ const HabitsView = named(() => import('./views/HabitsView'), 'HabitsView');
 const TasksView = named(() => import('./views/TasksView'), 'TasksView');
 const CalendarView = named(() => import('./views/CalendarView'), 'CalendarView');
 const GoalsView = named(() => import('./views/GoalsView'), 'GoalsView');
+const LiteView = named(() => import('./views/LiteView'), 'LiteView');
 const SettingsView = named(() => import('./views/SettingsView'), 'SettingsView');
 const PurchaseModal = named(modals, 'PurchaseModal');
 const SubscriptionModal = named(modals, 'SubscriptionModal');
@@ -302,6 +304,7 @@ const HubShell: React.FC = () => {
     });
 
   const notifConfig = resolveNotificationConfig(preferences);
+  const lite = Boolean(preferences.liteMode);
   const badgeCount = missedReminders.length;
 
   // Mirror the missed count onto the installed-PWA app icon badge
@@ -633,7 +636,7 @@ const HubShell: React.FC = () => {
         {/* Zone 2: Clean Single-Line Navigation Links (Tablet & Laptop) */}
         <nav
           aria-label="Primary Navigation"
-          className="hidden md:flex items-center gap-5 lg:gap-7 h-full"
+          className={`${lite ? 'hidden' : 'hidden md:flex'} items-center gap-5 lg:gap-7 h-full`}
         >
           {NAV_ITEMS.map((item) => {
             const isActive = activeTab === item.id;
@@ -659,6 +662,8 @@ const HubShell: React.FC = () => {
           ref={topRightMenusRef}
           className="relative flex items-center gap-1.5 shrink-0"
         >
+          {!lite && (
+          <>
           <button
             type="button"
             onClick={() => {
@@ -704,6 +709,8 @@ const HubShell: React.FC = () => {
           >
             <NineDotsIcon className="w-5 h-5" />
           </button>
+          </>
+          )}
 
           <button
             type="button"
@@ -1086,6 +1093,21 @@ const HubShell: React.FC = () => {
               <div className="pt-1 space-y-1 border-t border-[#E8EAED] dark:border-[#3C4043]">
                 <button
                   type="button"
+                  role="switch"
+                  aria-checked={lite}
+                  onClick={() => {
+                    setAccountMenuOpen(false);
+                    setActiveTab('home');
+                    void updatePreferences({ liteMode: !lite, uiModeChosen: true });
+                  }}
+                  className="w-full min-h-[40px] px-3 rounded-xl text-left text-xs font-medium text-[#202124] dark:text-[#E8EAED] hover:bg-[#F1F3F4] dark:hover:bg-[#303134] flex items-center justify-between"
+                >
+                  <span>{lite ? t('lite.full') : t('lite.mode')}</span>
+                  {lite && <Check className="w-3.5 h-3.5 hub-text-accent" />}
+                </button>
+
+                <button
+                  type="button"
                   onClick={() => {
                     setAccountMenuOpen(false);
                     setCommandQuery('');
@@ -1201,7 +1223,24 @@ const HubShell: React.FC = () => {
           }`}
         >
           <Suspense fallback={<PageFallback />}>
-          {activeTab === 'home' && (
+          {lite && activeTab !== 'settings' && (
+            <LiteView
+              onEditTask={(item) => setTaskModal({ open: true, item })}
+              onNewEvent={(dateISO) => setCalendarModal({ open: true, item: null, defaultDate: dateISO })}
+              onEditEvent={(item) => setCalendarModal({ open: true, item })}
+              onEditGoal={(item) => setGoalModal({ open: true, item })}
+            />
+          )}
+          {lite && activeTab === 'settings' && (
+            <button
+              type="button"
+              onClick={() => setActiveTab('home')}
+              className="mb-4 min-h-[40px] px-3 rounded-full text-sm font-medium hub-text-accent hover:bg-[#F1F3F4] dark:hover:bg-[#282A2C]"
+            >
+              ← {t('lite.back')}
+            </button>
+          )}
+          {!lite && activeTab === 'home' && (
             <HomeView
               onNavigate={navigateTab}
               onOpenSubscriptions={navigateSubscriptions}
@@ -1238,7 +1277,7 @@ const HubShell: React.FC = () => {
               onEditEvent={(item) => setCalendarModal({ open: true, item })}
             />
           )}
-          {activeTab === 'purchases' && (
+          {!lite && activeTab === 'purchases' && (
             <PurchasesView
               initialSubTab={purchasesSubTab}
               subTabSignal={purchasesSubSignal}
@@ -1257,14 +1296,14 @@ const HubShell: React.FC = () => {
               onOpenCalendar={() => navigateTab('calendar')}
             />
           )}
-          {activeTab === 'habits' && (
+          {!lite && activeTab === 'habits' && (
             <HabitsView
               onNewHabit={() => setHabitModal({ open: true, item: null })}
               onEditHabit={(item) => setHabitModal({ open: true, item })}
               onStartRoutine={() => setRoutineOpen(true)}
             />
           )}
-          {activeTab === 'goals' && (
+          {!lite && activeTab === 'goals' && (
             <GoalsView
               onNewGoal={() => setGoalModal({ open: true, item: null })}
               onEditGoal={(item) => setGoalModal({ open: true, item })}
@@ -1280,7 +1319,7 @@ const HubShell: React.FC = () => {
               onEditHabit={(item) => setHabitModal({ open: true, item })}
             />
           )}
-          {activeTab === 'tasks' && (
+          {!lite && activeTab === 'tasks' && (
             <TasksView
               onNewTask={(listId) =>
                 setTaskModal({
@@ -1292,7 +1331,7 @@ const HubShell: React.FC = () => {
               onEditTask={(item) => setTaskModal({ open: true, item })}
             />
           )}
-          {activeTab === 'calendar' && (
+          {!lite && activeTab === 'calendar' && (
             <CalendarView
               onNewEvent={(dateISO, startTime) =>
                 setCalendarModal({
@@ -1320,6 +1359,7 @@ const HubShell: React.FC = () => {
       </main>
 
       <BiometricOffer />
+      {!preferences.uiModeChosen && <ModeChooser onChoose={(liteMode) => void updatePreferences({ liteMode, uiModeChosen: true })} />}
       <Suspense fallback={null}>
         {reviewOpen && <ReviewSheet onClose={() => setReviewOpen(false)} />}
         {carryoverOpen && <CarryoverSheet onClose={() => setCarryoverOpen(false)} />}

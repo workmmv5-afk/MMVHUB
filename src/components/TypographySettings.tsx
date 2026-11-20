@@ -54,6 +54,31 @@ export const TypographySettings: React.FC<Props> = ({
         </button>
       </div>
 
+      <div className="space-y-1.5">
+        <span className="block text-[11px] font-medium text-[#444746] dark:text-[#C4C7C5]">
+          {tr('lite.interface')}
+        </span>
+        <div role="radiogroup" className="grid grid-cols-2 p-1 rounded-full bg-[#F1F3F4] dark:bg-[#282A2C]">
+          {([false, true] as const).map((isLite) => {
+            const on = Boolean(preferences.liteMode) === isLite;
+            return (
+              <button
+                key={String(isLite)}
+                type="button"
+                role="radio"
+                aria-checked={on}
+                onClick={() => void updatePreferences({ liteMode: isLite, uiModeChosen: true })}
+                className={`min-h-[34px] rounded-full text-xs font-semibold ${
+                  on ? 'bg-white dark:bg-[#1E1F20] text-[#202124] dark:text-[#E8EAED] shadow-2xs' : 'text-[#5F6368] dark:text-[#9AA0A6]'
+                }`}
+              >
+                {tr(isLite ? 'lite.chooseLite' : 'lite.chooseFull')}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       <Dropdown
         label={tr('settings.language')}
         value={preferences.language ?? 'system'}

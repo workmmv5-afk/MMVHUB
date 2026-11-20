@@ -24,6 +24,10 @@
 - **Hidden Scrollbars & Material 3 FAB**: Edge-to-edge scrolling without visible scrollbars and a quick mobile Floating Action Button on module views for rapid creation.
 - **Offline-First & Installable PWA**: Service worker asset precaching (`vite-plugin-pwa`), IndexedDB encrypted storage, offline connectivity banner, and one-tap install prompts on desktop, Android, and iOS.
 
+### Lite mode (`LiteView`)
+- A simpler one-page interface for everyday use: **Today** (tasks + habits with big checkboxes, quick add), **Expenses** (month total vs budget, quick add, last entries), **Next 7 days** (events), **Goals** (progress bars).
+- Chosen once after unlocking (Lite or Full); switch anytime in the account menu or Settings → Typography & Display → Interface. Same vault, PIN, reminders and phone widgets.
+
 ### 2. Home (`HomeView`)
 - **Snapshot Strip**: Real-time summary across **Month Net Spend** (with monthly savings goal headroom), **Today's Goals** (with a combined SVG Progress Ring across scheduled habits & tasks due today), **Open Tasks** (with overdue alert), and **30d Renewals** (direct jump to Subscriptions).
 - **Smart Reminder Alert Strip**: Surfaces urgent/due tasks, expiring trials, habits, and events with 1-tap notification dispatch.

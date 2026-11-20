@@ -395,6 +395,8 @@ export interface HubPreferences {
   density?: UiDensity;
   customAccent?: string; // #RRGGBB when accentTheme === 'custom'
   language?: 'system' | 'en' | 'uz' | 'ru';
+  liteMode?: boolean; // simplified one-page interface
+  uiModeChosen?: boolean; // first-run Lite/Full choice made
   clockFormat?: '12h' | '24h';
   dateStyle?: 'mdy' | 'dmy' | 'iso';
   haptics?: boolean;
