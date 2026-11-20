@@ -1807,6 +1807,8 @@ interface TaskModalProps {
   initial?: TaskRecord | null;
   defaultListId?: string;
   defaultGoalId?: string;
+  defaultTitle?: string;
+  defaultNotes?: string;
   goals?: GoalRecord[];
   allTasks?: TaskRecord[];
   templates?: TaskTemplate[];
@@ -1825,6 +1827,8 @@ export const TaskModal: React.FC<TaskModalProps> = ({
   initial,
   defaultListId,
   defaultGoalId,
+  defaultTitle,
+  defaultNotes,
   goals = [],
   allTasks = [],
   templates = [],
@@ -1836,7 +1840,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
   onDelete,
   onClose,
 }) => {
-  const [title, setTitle] = useState(initial?.title ?? '');
+  const [title, setTitle] = useState(initial?.title ?? defaultTitle ?? '');
   const [blockedBy, setBlockedBy] = useState(initial?.blockedBy ?? '');
   const [notesPreview, setNotesPreview] = useState(Boolean(initial?.notes));
   const [templateId, setTemplateId] = useState('');
@@ -1858,7 +1862,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
   const [estimateMinutes, setEstimateMinutes] = useState(
     initial?.estimateMinutes ? String(initial.estimateMinutes) : ''
   );
-  const [notes, setNotes] = useState(initial?.notes ?? '');
+  const [notes, setNotes] = useState(initial?.notes ?? defaultNotes ?? '');
   const [subtasks, setSubtasks] = useState<TaskSubItem[]>(
     initial?.subtasks ?? []
   );

@@ -76,6 +76,7 @@ export const DEFAULT_NOTIFICATION_CONFIG: Required<NotificationConfig> = {
   actionButtons: true,
   snoozeMinutes: 60,
   nagCritical: false,
+  ongoingSummary: false,
 };
 
 function clampInt(value: unknown, min: number, max: number, fallback: number) {
@@ -124,6 +125,7 @@ export function resolveNotificationConfig(
     actionButtons: raw.actionButtons ?? d.actionButtons,
     snoozeMinutes: clampInt(raw.snoozeMinutes, 5, 1440, d.snoozeMinutes),
     nagCritical: raw.nagCritical ?? d.nagCritical,
+    ongoingSummary: raw.ongoingSummary ?? d.ongoingSummary,
   };
 }
 

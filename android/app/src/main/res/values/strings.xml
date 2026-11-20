@@ -16,4 +16,5 @@
     <string name="sc_new_spend">Log purchase</string>
     <string name="sc_habits">Today\'s habits</string>
     <string name="sc_new_event">New event</string>
+    <string name="tile_label">MMV quick add</string>
 </resources>

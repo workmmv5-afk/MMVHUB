@@ -24,6 +24,7 @@ import { TypographySettings } from '../components/TypographySettings';
 import { SecuritySettings } from '../components/SecuritySettings';
 import { PhoneWidgetSettings } from '../components/PhoneWidgetSettings';
 import { DataSettings } from '../components/DataSettings';
+import { isNative, MmvWidgets } from '../lib/native';
 import { getWidgetMeta, resolveHomeWidgets } from '../lib/homeWidgets';
 import {
   collectDueReminders,
@@ -475,6 +476,23 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </span>
               {accentTheme === 'custom' && <Check className="w-3.5 h-3.5 shrink-0" />}
             </label>
+            {isNative() && (
+              <button
+                type="button"
+                onClick={async () => {
+                  const { color } = await MmvWidgets.getSystemAccent().catch(() => ({ color: undefined }));
+                  if (!color) {
+                    setErrorMessage('Material You colours need Android 12 or newer.');
+                    return;
+                  }
+                  setAccentTheme('custom');
+                  await updatePreferences({ accentTheme: 'custom', customAccent: color });
+                }}
+                className="min-h-[46px] px-3.5 rounded-2xl border border-[#DADCE0] dark:border-[#444746] text-xs font-medium text-left hover:bg-[#F8F9FA] dark:hover:bg-[#282A2C]"
+              >
+                Wallpaper colour
+              </button>
+            )}
           </div>
         </div>
 

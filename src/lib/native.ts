@@ -11,6 +11,7 @@ interface MmvWidgetsPlugin {
   setSnapshot(opts: { json: string }): Promise<void>;
   clear(): Promise<void>;
   setSecureScreen(opts: { enabled: boolean }): Promise<void>;
+  getSystemAccent(): Promise<{ color?: string }>;
 }
 
 export const MmvWidgets = registerPlugin<MmvWidgetsPlugin>('MmvWidgets');

@@ -401,6 +401,12 @@ export const NotificationCustomizer: React.FC<NotificationCustomizerProps> = ({
               onChange={(actionButtons) => patch({ actionButtons })}
             />
             <Toggle
+              label="Today summary in shade"
+              hint="Quiet ongoing notification"
+              checked={cfg.ongoingSummary}
+              onChange={(ongoingSummary) => patch({ ongoingSummary })}
+            />
+            <Toggle
               label="Nag for urgent tasks"
               hint="Repeat high-priority alerts 3× every 10 min"
               checked={cfg.nagCritical}

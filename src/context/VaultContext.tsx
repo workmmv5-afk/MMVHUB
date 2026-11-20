@@ -65,7 +65,11 @@ import { applyTypography, resolveTypography } from '../lib/typography';
 import { isNative, MmvWidgets } from '../lib/native';
 import { applyCustomAccent } from '../lib/accent';
 import { haptic, setHapticsEnabled } from '../lib/haptics';
-import { cancelAllNativeReminders, syncNativeReminders } from '../lib/nativeReminders';
+import {
+  cancelAllNativeReminders,
+  syncNativeReminders,
+  syncOngoingSummary,
+} from '../lib/nativeReminders';
 import {
   clearWidgetSnapshot,
   pushWidgetSnapshot,
@@ -2669,6 +2673,14 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
     const timer = window.setTimeout(() => {
       void (async () => {
         const perm = await refreshNativeNotificationPermission();
+        await syncOngoingSummary({
+          enabled:
+            perm === 'granted' &&
+            Boolean(preferences.notificationsEnabled) &&
+            Boolean(preferences.notificationConfig?.ongoingSummary),
+          tasks,
+          habits,
+        });
         await syncNativeReminders({
           enabled: Boolean(preferences.notificationsEnabled) && perm === 'granted',
           tasks,

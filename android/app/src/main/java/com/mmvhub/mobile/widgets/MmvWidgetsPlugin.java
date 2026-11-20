@@ -1,6 +1,9 @@
 package com.mmvhub.mobile.widgets;
 
+import android.os.Build;
 import android.view.WindowManager;
+
+import com.getcapacitor.JSObject;
 
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
@@ -35,6 +38,17 @@ public class MmvWidgetsPlugin extends Plugin {
             }
             call.resolve();
         });
+    }
+
+    /** Material You: wallpaper-based accent colour on Android 12+. */
+    @PluginMethod
+    public void getSystemAccent(PluginCall call) {
+        JSObject ret = new JSObject();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            int c = getContext().getColor(android.R.color.system_accent1_600);
+            ret.put("color", String.format("#%06X", 0xFFFFFF & c));
+        }
+        call.resolve(ret);
     }
 
     @PluginMethod

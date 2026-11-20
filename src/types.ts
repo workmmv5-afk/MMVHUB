@@ -335,6 +335,7 @@ export interface NotificationConfig {
   actionButtons?: boolean; // Done / Snooze / Paid buttons on notifications
   snoozeMinutes?: number;
   nagCritical?: boolean; // repeat alerts for high-priority timed tasks
+  ongoingSummary?: boolean; // persistent "today" notification (Android)
 }
 
 /** Android home-screen widget appearance & content. */

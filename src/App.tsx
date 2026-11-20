@@ -219,6 +219,8 @@ const HubShell: React.FC = () => {
     item?: TaskRecord | null;
     defaultListId?: string;
     defaultGoalId?: string;
+    defaultTitle?: string;
+    defaultNotes?: string;
   }>({ open: false });
 
   const [goalModal, setGoalModal] = useState<{
@@ -336,6 +338,21 @@ const HubShell: React.FC = () => {
       } else {
         openRecord(kind, recordId);
       }
+      return;
+    }
+
+    // Shared text from other apps → new task (link kept in notes)
+    if (intent.url.startsWith('mmvhub://share')) {
+      const text = new URLSearchParams(intent.url.split('?')[1] ?? '').get('text') ?? '';
+      const url = /https?:\/\/\S+/.exec(text)?.[0];
+      const title = (url ? text.replace(url, '') : text).replace(/\s+/g, ' ').trim() || url || 'Shared item';
+      setTaskModal({
+        open: true,
+        item: null,
+        defaultListId: DEFAULT_TASK_LIST_ID,
+        defaultTitle: title.slice(0, 160),
+        defaultNotes: url,
+      });
       return;
     }
 
@@ -1361,6 +1378,8 @@ const HubShell: React.FC = () => {
           initial={taskModal.item}
           defaultListId={taskModal.defaultListId}
           defaultGoalId={taskModal.defaultGoalId}
+          defaultTitle={taskModal.defaultTitle}
+          defaultNotes={taskModal.defaultNotes}
           goals={goals}
           allTasks={tasks}
           templates={preferences.taskTemplates ?? []}

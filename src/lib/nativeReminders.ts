@@ -355,6 +355,81 @@ export async function syncNativeReminders(
   return notifications.length;
 }
 
+const ONGOING_ID = 1_999_999_001;
+
+/** Persistent low-key "today" summary in the notification shade. */
+export async function syncOngoingSummary(params: {
+  enabled: boolean;
+  tasks: TaskRecord[];
+  habits: HabitRecord[];
+}): Promise<void> {
+  if (!isNative()) return;
+  const LN = await loadLocalNotifications();
+  if (!params.enabled) {
+    await LN.cancel({ notifications: [{ id: ONGOING_ID }] }).catch(() => undefined);
+    return;
+  }
+  const today = getTodayISO();
+  const tasksLeft = params.tasks.filter((t) => !t.completed && t.dueDate && t.dueDate <= today).length;
+  const habitsLeft = params.habits.filter(
+    (h) => !h.archived && isHabitScheduledOnDate(h, today) && (h.logs[today] ?? 0) < h.targetPerDay
+  ).length;
+  const body =
+    tasksLeft + habitsLeft === 0
+      ? 'All done for today ✓'
+      : [tasksLeft ? `${tasksLeft} task${tasksLeft === 1 ? '' : 's'}` : '', habitsLeft ? `${habitsLeft} habit${habitsLeft === 1 ? '' : 's'}` : '']
+          .filter(Boolean)
+          .join(' · ') + ' left';
+  await LN.createChannel({
+    id: 'mmv_ongoing',
+    name: 'Today summary',
+    description: 'Persistent summary of what is left today',
+    importance: 2,
+    vibration: false,
+  }).catch(() => undefined);
+  await LN.schedule({
+    notifications: [
+      {
+        id: ONGOING_ID,
+        title: 'Today',
+        body,
+        channelId: 'mmv_ongoing',
+        smallIcon: 'ic_stat_mmv',
+        ongoing: true,
+        autoCancel: false,
+        extra: { kind: 'digest', recordId: '' },
+      },
+    ],
+  });
+}
+
+const FOCUS_ID = 1_999_999_002;
+
+/** Ongoing "Focus until …" notification while a focus session runs. */
+export async function setFocusNotification(endsAt: number | null, title = 'Focus session'): Promise<void> {
+  if (!isNative()) return;
+  const LN = await loadLocalNotifications();
+  if (!endsAt) {
+    await LN.cancel({ notifications: [{ id: FOCUS_ID }] }).catch(() => undefined);
+    return;
+  }
+  const end = new Date(endsAt);
+  await LN.schedule({
+    notifications: [
+      {
+        id: FOCUS_ID,
+        title,
+        body: `Until ${formatTime12h(`${String(end.getHours()).padStart(2, '0')}:${String(end.getMinutes()).padStart(2, '0')}`)} · stay on it`,
+        channelId: 'mmv_ongoing',
+        smallIcon: 'ic_stat_mmv',
+        ongoing: true,
+        autoCancel: false,
+        extra: { kind: 'digest', recordId: '' },
+      },
+    ],
+  });
+}
+
 /** One-off reminder (used by "Snooze" actions). */
 export async function scheduleSnooze(title: string, body: string, minutes: number, extra: Record<string, string>) {
   if (!isNative()) return;

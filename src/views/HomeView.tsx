@@ -51,6 +51,7 @@ import {
 import { resolveHomeWidgets } from '../lib/homeWidgets';
 import { WidgetCustomizer } from '../components/WidgetCustomizer';
 import { startAmbient, stopAmbient, type AmbientKind } from '../lib/ambient';
+import { setFocusNotification } from '../lib/nativeReminders';
 import { GOAL_COLOR_CLASSES, getGoalPace } from './GoalsView';
 import type {
   CalendarEventRecord,
@@ -182,6 +183,10 @@ export const HomeView: React.FC<HomeViewProps> = ({
   // Encrypted Scratchpad state
   const [scratchText, setScratchText] = useState(preferences.scratchpad ?? '');
   const [scratchSavedAt, setScratchSavedAt] = useState<number | null>(null);
+  // Incognito scratch: memory only — never encrypted to disk or synced,
+  // and gone when the vault locks (this view unmounts).
+  const [privateNote, setPrivateNote] = useState(false);
+  const [privateText, setPrivateText] = useState('');
 
   useEffect(() => {
     setScratchText(preferences.scratchpad ?? '');
@@ -201,6 +206,12 @@ export const HomeView: React.FC<HomeViewProps> = ({
   const [ambient, setAmbient] = useState<AmbientKind>(
     () => (localStorage.getItem('mmv_focus_ambient') as AmbientKind) || 'off'
   );
+
+  // Android: ongoing "Focus until …" notification while running
+  useEffect(() => {
+    const linked = tasks.find((t) => t.id === focusTaskId);
+    void setFocusNotification(endsAt, linked ? `Focus · ${linked.title}` : 'Focus session');
+  }, [endsAt, focusTaskId, tasks]);
 
   // Ambient sound plays only while a focus session is running
   useEffect(() => {
@@ -1542,9 +1553,25 @@ export const HomeView: React.FC<HomeViewProps> = ({
                 className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#202124] dark:text-[#E8EAED]"
               >
                 <StickyNote className="w-4 h-4 hub-text-accent" />
-                <span>Encrypted Note</span>
+                <span>{privateNote ? 'Private scratch' : 'Encrypted Note'}</span>
               </label>
-              {scratchText !== (preferences.scratchpad ?? '') ? (
+              <button
+                type="button"
+                aria-pressed={privateNote}
+                title={privateNote ? 'Back to saved note' : 'Private: never saved, gone on lock'}
+                onClick={() => {
+                  setPrivateNote((v) => !v);
+                  setPrivateText('');
+                }}
+                className={`ml-auto mr-2 min-h-[28px] px-2.5 rounded-full text-[11px] font-medium ${
+                  privateNote ? 'hub-bg-soft' : 'text-[#5F6368] dark:text-[#9AA0A6] hover:bg-[#F1F3F4] dark:hover:bg-[#282A2C]'
+                }`}
+              >
+                {privateNote ? 'Private' : 'Private?'}
+              </button>
+              {privateNote ? (
+                <span className="text-[11px] text-[#5F6368] dark:text-[#9AA0A6]">Not saved</span>
+              ) : scratchText !== (preferences.scratchpad ?? '') ? (
                 <button
                   type="button"
                   onClick={() => void handleSaveScratchpad()}
@@ -1561,9 +1588,13 @@ export const HomeView: React.FC<HomeViewProps> = ({
             <textarea
               id="home-scratchpad"
               rows={3}
-              value={scratchText}
-              onChange={(e) => setScratchText(e.target.value)}
-              onBlur={() => void handleSaveScratchpad()}
+              value={privateNote ? privateText : scratchText}
+              onChange={(e) =>
+                privateNote ? setPrivateText(e.target.value) : setScratchText(e.target.value)
+              }
+              onBlur={() => {
+                if (!privateNote) void handleSaveScratchpad();
+              }}
               placeholder="Jot down quick encrypted notes, links, or reminders..."
               className="w-full rounded-xl border border-[#E8EAED] dark:border-[#3C4043] bg-[#F8F9FA] dark:bg-[#131314] px-3 py-2 text-xs sm:text-sm text-[#202124] dark:text-[#E8EAED] placeholder:text-[#5F6368] dark:placeholder:text-[#9AA0A6] focus:outline-none focus:border-[var(--hub-accent)] resize-y"
             />

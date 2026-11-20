@@ -8,6 +8,7 @@ import {
   setDoc,
   updateDoc,
   where,
+  writeBatch,
   type Unsubscribe,
 } from 'firebase/firestore';
 import type { LocalVaultMeta, LocalVaultRecord, VaultRecordKind } from '../types';
@@ -82,14 +83,66 @@ export async function rotateCloudVaultProfileKey(
   }
 }
 
+const BATCH_SIZE = 100;
+
+/** Commit up to 100 records atomically; returns false so callers can fall back. */
+async function pushBatch(uid: string, records: LocalVaultRecord[]): Promise<boolean> {
+  const batch = writeBatch(db);
+  const writable = records.filter((r) => !(r.deleted && !r.syncedToCloud));
+  for (const record of writable) {
+    const ref = doc(db, 'users', uid, 'vaultItems', record.id);
+    if (!record.syncedToCloud) {
+      batch.set(ref, {
+        ownerId: uid,
+        kind: record.kind,
+        iv: record.iv,
+        ciphertext: record.ciphertext,
+        version: record.version,
+        deleted: false,
+        clientUpdatedAt: record.clientUpdatedAt,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+    } else {
+      batch.update(ref, {
+        iv: record.iv,
+        ciphertext: record.ciphertext,
+        version: record.version,
+        clientUpdatedAt: record.clientUpdatedAt,
+        updatedAt: serverTimestamp(),
+        ...(record.deleted ? { deleted: true } : {}),
+      });
+    }
+  }
+  try {
+    if (writable.length > 0) await batch.commit();
+  } catch {
+    return false;
+  }
+  await putLocalRecordsBatch(
+    records.map((r) => ({ ...r, syncState: 'synced' as const, syncedToCloud: r.deleted && !r.syncedToCloud ? false : true }))
+  );
+  return true;
+}
+
 export async function pushPendingVaultRecords(uid: string): Promise<number> {
   const allLocal = await getAllLocalRecords();
   const pending = allLocal.filter((r) => r.syncState === 'pending');
   if (pending.length === 0) return 0;
 
   let syncedCount = 0;
+  const fallback: LocalVaultRecord[] = [];
 
-  for (const record of pending) {
+  // Fast path: atomic batches (one round-trip per 100 records)
+  for (let i = 0; i < pending.length; i += BATCH_SIZE) {
+    const chunk = pending.slice(i, i + BATCH_SIZE);
+    if (await pushBatch(uid, chunk)) syncedCount += chunk.length;
+    else fallback.push(...chunk);
+  }
+  if (fallback.length === 0) return syncedCount;
+
+  // Slow path: per-record writes so one bad record doesn't block the rest
+  for (const record of fallback) {
     const path = `users/${uid}/vaultItems/${record.id}`;
     const ref = doc(db, 'users', uid, 'vaultItems', record.id);
 

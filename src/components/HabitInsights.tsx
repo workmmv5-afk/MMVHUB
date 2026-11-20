@@ -7,6 +7,7 @@ import {
   getTodayISO,
   isHabitScheduledOnDate,
 } from '../lib/format';
+import { isNative } from '../lib/native';
 
 const MILESTONES = [7, 21, 30, 66, 100, 365];
 
@@ -85,6 +86,7 @@ export const HabitInsights: React.FC<Props> = ({ habit, allHabits, onJournal, on
 
   // Journal
   const [note, setNote] = useState(habit.journal?.[today] ?? '');
+  const [nfcCopied, setNfcCopied] = useState(false);
   const recentNotes = Object.entries(habit.journal ?? {})
     .filter(([d]) => d !== today)
     .sort((a, b) => b[0].localeCompare(a[0]))
@@ -189,6 +191,20 @@ export const HabitInsights: React.FC<Props> = ({ habit, allHabits, onJournal, on
             </span>
           )}
         </div>
+      )}
+
+      {isNative() && (
+        <button
+          type="button"
+          onClick={() =>
+            void navigator.clipboard
+              ?.writeText(`mmvhub://toggle/habit/${habit.id}`)
+              .then(() => setNfcCopied(true))
+          }
+          className="text-[11px] font-medium hub-text-accent"
+        >
+          {nfcCopied ? 'Link copied — write it to an NFC tag (URI record)' : 'Copy NFC check-in link'}
+        </button>
       )}
 
       {/* Journal */}
