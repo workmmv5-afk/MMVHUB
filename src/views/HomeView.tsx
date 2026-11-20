@@ -28,6 +28,7 @@ import {
   calculateHabitStreak,
   computeGoalProgress,
   doesEventOccurOnDate,
+  eventDisplayTitle,
   formatCurrency,
   formatHabitScheduleLabel,
   formatShortDate,
@@ -1194,7 +1195,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                     >
                       <div className="min-w-0">
                         <p className="text-sm font-medium text-[#202124] dark:text-[#E8EAED] truncate">
-                          {ev.title}
+                          {eventDisplayTitle(ev, selectedScheduleDay)}
                         </p>
                         <p className="text-xs text-[#5F6368] dark:text-[#9AA0A6] truncate">
                           {ev.allDay ? 'All day' : formatTime12h(ev.startTime)}

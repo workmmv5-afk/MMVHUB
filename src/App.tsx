@@ -157,6 +157,8 @@ const HubShell: React.FC = () => {
     deleteSubscription,
     saveHabit,
     toggleHabitLog,
+    setHabitJournal,
+    setHabitLogCount,
     deleteHabit,
     saveTask,
     toggleTaskCompleted,
@@ -228,6 +230,7 @@ const HubShell: React.FC = () => {
     open: boolean;
     item?: CalendarEventRecord | null;
     defaultDate?: string;
+    defaultStartTime?: string;
   }>({ open: false });
 
   useEffect(() => {
@@ -1254,11 +1257,12 @@ const HubShell: React.FC = () => {
           )}
           {activeTab === 'calendar' && (
             <CalendarView
-              onNewEvent={(dateISO) =>
+              onNewEvent={(dateISO, startTime) =>
                 setCalendarModal({
                   open: true,
                   item: null,
                   defaultDate: dateISO,
+                  defaultStartTime: startTime,
                 })
               }
               onEditEvent={(ev) => setCalendarModal({ open: true, item: ev })}
@@ -1337,6 +1341,9 @@ const HubShell: React.FC = () => {
         <HabitModal
           initial={habitModal.item}
           goals={goals}
+          allHabits={habits}
+          onJournal={setHabitJournal}
+          onLog={setHabitLogCount}
           onSave={saveHabit}
           onDelete={deleteHabit}
           onClose={() => setHabitModal({ open: false })}
@@ -1371,6 +1378,7 @@ const HubShell: React.FC = () => {
         <CalendarEventModal
           initial={calendarModal.item}
           defaultDate={calendarModal.defaultDate}
+          defaultStartTime={calendarModal.defaultStartTime}
           onSave={saveCalendarEvent}
           onDelete={deleteCalendarEvent}
           onClose={() => setCalendarModal({ open: false })}

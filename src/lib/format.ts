@@ -183,10 +183,14 @@ export function getDaysUntil(dateISO: string, fromISO = getTodayISO()): number {
 
 /** True when a (possibly recurring) calendar event lands on targetISO. */
 export function doesEventOccurOnDate(
-  ev: Pick<CalendarEventRecord, 'date' | 'repeat'>,
+  ev: Pick<CalendarEventRecord, 'date' | 'repeat' | 'endDate'>,
   targetISO: string
 ): boolean {
   if (ev.date === targetISO) return true;
+  // Multi-day (non-repeating) span
+  if (ev.endDate && (!ev.repeat || ev.repeat === 'none')) {
+    return targetISO > ev.date && targetISO <= ev.endDate;
+  }
   if (!ev.repeat || ev.repeat === 'none' || targetISO < ev.date) return false;
   const [sy, sm, sd] = ev.date.split('-').map(Number);
   const [ty, tm, td] = targetISO.split('-').map(Number);
@@ -199,7 +203,17 @@ export function doesEventOccurOnDate(
   return false;
 }
 
-const WEEKDAY_NAMES_SHORT =['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+/** Title with age/anniversary for yearly events that have a birth year. */
+export function eventDisplayTitle(
+  ev: Pick<CalendarEventRecord, 'title' | 'birthYear' | 'repeat'>,
+  dateISO: string
+): string {
+  if (!ev.birthYear || ev.repeat !== 'yearly') return ev.title;
+  const years = Number(dateISO.slice(0, 4)) - ev.birthYear;
+  return years > 0 ? `${ev.title} · ${years}` : ev.title;
+}
+
+const WEEKDAY_NAMES_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 function parseLocalDate(dateISO: string): Date {
   const [y, m, d] = dateISO.split('-').map(Number);

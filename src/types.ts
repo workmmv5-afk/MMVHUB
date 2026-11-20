@@ -130,6 +130,7 @@ export interface HabitRecord {
   unit?: string;
   logs: Record<string, number>;
   freezeDates?: string[]; // Streak freeze/rest YYYY-MM-DD dates
+  journal?: Record<string, string>; // YYYY-MM-DD -> short reflection
   archived?: boolean;
   createdAt: number;
   updatedAt: number;
@@ -272,6 +273,8 @@ export interface CalendarEventRecord {
   repeat?: RecurrenceCycle;
   reminderOffsetMinutes?: number; // e.g., 0, 10, 30, 60, 1440
   isMilestone?: boolean;
+  endDate?: string; // YYYY-MM-DD, multi-day (non-repeating) events
+  birthYear?: number; // yearly birthdays/anniversaries → "turns N"
   createdAt: number;
   updatedAt: number;
 }
@@ -393,6 +396,7 @@ export interface HubPreferences {
   homeWidgets?: HomeWidgetConfig[];
   taskTemplates?: TaskTemplate[];
   phoneWidgets?: PhoneWidgetConfig;
+  colorLabels?: Partial<Record<CalendarColor, string>>;
   categoryBudgets?: Partial<Record<PurchaseCategory, number>>;
   scratchpad?: string;
   focusSessionsToday?: {

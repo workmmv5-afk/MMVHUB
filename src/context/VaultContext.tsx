@@ -237,6 +237,7 @@ interface VaultContextValue {
     count: number
   ) => Promise<void>;
   toggleHabitFreeze: (habitId: string, dateISO: string) => Promise<void>;
+  setHabitJournal: (habitId: string, dateISO: string, text: string) => Promise<void>;
   toggleHabitArchived: (id: string, archived: boolean) => Promise<void>;
   deleteHabit: (id: string) => Promise<void>;
   createTaskList: (name: string) => Promise<TaskListRecord>;
@@ -276,6 +277,9 @@ interface VaultContextValue {
     }
   ) => Promise<void>;
   deleteCalendarEvent: (id: string) => Promise<void>;
+  importCalendarEvents: (
+    items: Omit<CalendarEventRecord, 'id' | 'createdAt' | 'updatedAt'>[]
+  ) => Promise<void>;
   saveGoal: (
     data: Omit<GoalRecord, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }
   ) => Promise<void>;
@@ -1558,6 +1562,26 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
     [habits, persistEncryptedRecord]
   );
 
+  const setHabitJournal = useCallback(
+    async (habitId: string, dateISO: string, text: string) => {
+      const target = habits.find((h) => h.id === habitId);
+      if (!target) return;
+      const journal = { ...(target.journal ?? {}) };
+      const clean = text.trim().slice(0, 280);
+      if (clean) journal[dateISO] = clean;
+      else delete journal[dateISO];
+      // Keep the record well under the 32 KB sync limit
+      const keys = Object.keys(journal).sort();
+      for (const k of keys.slice(0, Math.max(0, keys.length - 120))) delete journal[k];
+      await persistEncryptedRecord(
+        'habit',
+        { ...target, journal: Object.keys(journal).length ? journal : undefined, updatedAt: Date.now() },
+        false
+      );
+    },
+    [habits, persistEncryptedRecord]
+  );
+
   const toggleHabitFreeze = useCallback(
     async (habitId: string, dateISO: string) => {
       const target = habits.find((h) => h.id === habitId);
@@ -2256,6 +2280,14 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
             ? data.reminderOffsetMinutes
             : undefined,
         isMilestone: Boolean(data.isMilestone),
+        endDate:
+          data.endDate && data.endDate > data.date && (!data.repeat || data.repeat === 'none')
+            ? data.endDate
+            : undefined,
+        birthYear:
+          data.repeat === 'yearly' && data.birthYear && data.birthYear > 1900 && data.birthYear <= new Date().getFullYear()
+            ? Math.round(data.birthYear)
+            : undefined,
         createdAt: existingItem?.createdAt ?? now,
         updatedAt: now,
       };
@@ -2263,6 +2295,34 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
       showSnackbar(existingItem ? 'Event updated' : 'Event saved');
     },
     [calendarEvents, persistEncryptedRecord, showSnackbar]
+  );
+
+  const importCalendarEvents = useCallback(
+    async (items: Omit<CalendarEventRecord, 'id' | 'createdAt' | 'updatedAt'>[]) => {
+      if (items.length === 0) {
+        showSnackbar('No events found in that file');
+        return;
+      }
+      // Skip exact duplicates (same title + date + start)
+      const seen = new Set(calendarEvents.map((e) => `${e.title}|${e.date}|${e.startTime ?? ''}`));
+      let added = 0;
+      const now = Date.now();
+      for (const it of items) {
+        const sig = `${it.title}|${it.date}|${it.startTime ?? ''}`;
+        if (seen.has(sig)) continue;
+        seen.add(sig);
+        await persistEncryptedRecord(
+          'calendar',
+          { ...it, id: createRecordId('cal'), createdAt: now, updatedAt: now },
+          false,
+          { deferRefresh: true }
+        );
+        added++;
+      }
+      await refreshAfterBatch();
+      showSnackbar(`Imported ${added} event${added === 1 ? '' : 's'}${items.length - added ? ` · ${items.length - added} duplicates skipped` : ''}`);
+    },
+    [calendarEvents, persistEncryptedRecord, refreshAfterBatch, showSnackbar]
   );
 
   const deleteCalendarEvent = useCallback(
@@ -3020,6 +3080,7 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
       toggleHabitLog,
       setHabitLogCount,
       toggleHabitFreeze,
+      setHabitJournal,
       toggleHabitArchived,
       deleteHabit,
       createTaskList,
@@ -3046,6 +3107,7 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
       clearCompletedTasks,
       saveCalendarEvent,
       deleteCalendarEvent,
+      importCalendarEvents,
       saveGoal,
       deleteGoal,
       setGoalStatus,
@@ -3111,6 +3173,7 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
       toggleHabitLog,
       setHabitLogCount,
       toggleHabitFreeze,
+      setHabitJournal,
       toggleHabitArchived,
       deleteHabit,
       createTaskList,
@@ -3137,6 +3200,7 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
       clearCompletedTasks,
       saveCalendarEvent,
       deleteCalendarEvent,
+      importCalendarEvents,
       saveGoal,
       deleteGoal,
       setGoalStatus,

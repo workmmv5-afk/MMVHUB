@@ -34,6 +34,7 @@ import {
 } from '../lib/format';
 import { DEFAULT_TASK_LIST_ID } from '../context/VaultContext';
 import { Markdown, toggleMarkdownCheck } from './Markdown';
+import { HabitInsights } from './HabitInsights';
 
 const PURCHASE_CATEGORIES: PurchaseCategory[] = [
   'Groceries',
@@ -1148,6 +1149,9 @@ const WEEKDAY_CIRCLE_OPTIONS = [
 interface HabitModalProps {
   initial?: HabitRecord | null;
   goals?: GoalRecord[];
+  allHabits?: HabitRecord[];
+  onJournal?: (habitId: string, dateISO: string, text: string) => Promise<void>;
+  onLog?: (habitId: string, dateISO: string, count: number) => Promise<void>;
   onSave: (
     data: Omit<HabitRecord, 'id' | 'createdAt' | 'updatedAt' | 'logs'> & {
       id?: string;
@@ -1160,6 +1164,9 @@ interface HabitModalProps {
 export const HabitModal: React.FC<HabitModalProps> = ({
   initial,
   goals = [],
+  allHabits = [],
+  onJournal,
+  onLog,
   onSave,
   onDelete,
   onClose,
@@ -1706,6 +1713,15 @@ export const HabitModal: React.FC<HabitModalProps> = ({
           value={goalId}
           onChange={setGoalId}
         />
+
+        {initial && onJournal && onLog && (
+          <HabitInsights
+            habit={allHabits.find((h) => h.id === initial.id) ?? initial}
+            allHabits={allHabits}
+            onJournal={onJournal}
+            onLog={onLog}
+          />
+        )}
 
         <div className="flex items-center gap-3 pt-2">
           {initial && onDelete && (
@@ -2310,6 +2326,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
 interface CalendarEventModalProps {
   initial?: CalendarEventRecord | null;
   defaultDate?: string;
+  defaultStartTime?: string;
   onSave: (
     data: Omit<CalendarEventRecord, 'id' | 'createdAt' | 'updatedAt'> & {
       id?: string;
@@ -2322,6 +2339,7 @@ interface CalendarEventModalProps {
 export const CalendarEventModal: React.FC<CalendarEventModalProps> = ({
   initial,
   defaultDate,
+  defaultStartTime,
   onSave,
   onDelete,
   onClose,
@@ -2331,8 +2349,15 @@ export const CalendarEventModal: React.FC<CalendarEventModalProps> = ({
     initial?.date ?? defaultDate ?? getTodayISO()
   );
   const [allDay, setAllDay] = useState(initial?.allDay ?? false);
-  const [startTime, setStartTime] = useState(initial?.startTime ?? '09:00');
-  const [endTime, setEndTime] = useState(initial?.endTime ?? '10:00');
+  const [startTime, setStartTime] = useState(initial?.startTime ?? defaultStartTime ?? '09:00');
+  const [endDate, setEndDate] = useState(initial?.endDate ?? '');
+  const [birthYear, setBirthYear] = useState(initial?.birthYear ? String(initial.birthYear) : '');
+  const [endTime, setEndTime] = useState(
+    initial?.endTime ??
+      (defaultStartTime
+        ? `${String(Math.min(23, Number(defaultStartTime.slice(0, 2)) + 1)).padStart(2, '0')}:${defaultStartTime.slice(3)}`
+        : '10:00')
+  );
   const [location, setLocation] = useState(initial?.location ?? '');
   const [notes, setNotes] = useState(initial?.notes ?? '');
   const [color, setColor] = useState<CalendarColor>(initial?.color ?? 'blue');
@@ -2371,6 +2396,8 @@ export const CalendarEventModal: React.FC<CalendarEventModalProps> = ({
         reminderOffsetMinutes:
           reminderOffsetMinutes >= 0 ? reminderOffsetMinutes : undefined,
         isMilestone,
+        endDate: allDay && repeat === 'none' && endDate ? endDate : undefined,
+        birthYear: repeat === 'yearly' && birthYear ? Number(birthYear) : undefined,
       });
       onClose();
     } catch (err) {
@@ -2495,6 +2522,44 @@ export const CalendarEventModal: React.FC<CalendarEventModalProps> = ({
             </div>
           </div>
         )}
+
+        {(allDay && repeat === 'none') || repeat === 'yearly' ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+            {allDay && repeat === 'none' && (
+              <div className="space-y-1.5">
+                <label htmlFor="cal-enddate" className="block text-xs font-medium text-[#444746] dark:text-[#C4C7C5]">
+                  Ends (multi-day)
+                </label>
+                <input
+                  id="cal-enddate"
+                  type="date"
+                  min={date}
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="w-full min-h-[44px] rounded-xl border border-[#747775] dark:border-[#8E918F] bg-transparent px-3 font-mono text-sm"
+                />
+              </div>
+            )}
+            {repeat === 'yearly' && (
+              <div className="space-y-1.5">
+                <label htmlFor="cal-birthyear" className="block text-xs font-medium text-[#444746] dark:text-[#C4C7C5]">
+                  Since year (shows age)
+                </label>
+                <input
+                  id="cal-birthyear"
+                  type="number"
+                  inputMode="numeric"
+                  min={1900}
+                  max={new Date().getFullYear()}
+                  value={birthYear}
+                  onChange={(e) => setBirthYear(e.target.value)}
+                  placeholder="e.g. 1990"
+                  className="w-full min-h-[44px] rounded-xl border border-[#747775] dark:border-[#8E918F] bg-transparent px-3 font-mono text-sm"
+                />
+              </div>
+            )}
+          </div>
+        ) : null}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 items-center">
           <div className="space-y-1.5">

@@ -6,11 +6,14 @@ import {
   ChevronRight,
   Clock,
   Download,
+  Upload,
   MapPin,
   Plus,
   Repeat,
 } from 'lucide-react';
 import { useVault } from '../context/VaultContext';
+import { parseICS } from '../lib/ics';
+import { ColorLabels, FreeTimeFinder, YearGlance } from '../components/CalendarExtras';
 import type {
   CalendarColor,
   CalendarEventRecord,
@@ -20,6 +23,8 @@ import type {
 } from '../types';
 import {
   buildCalendarICS,
+  doesEventOccurOnDate,
+  eventDisplayTitle,
   formatCurrency,
   formatMonthLabel,
   formatShortDate,
@@ -31,13 +36,13 @@ import {
 } from '../lib/format';
 
 interface CalendarViewProps {
-  onNewEvent: (dateISO?: string) => void;
+  onNewEvent: (dateISO?: string, startTime?: string) => void;
   onEditEvent: (event: CalendarEventRecord) => void;
   onEditTask: (task: TaskRecord) => void;
   onEditSubscription: (sub: SubscriptionRecord) => void;
 }
 
-type CalendarMode = 'month' | 'week' | 'schedule';
+type CalendarMode = 'month' | 'week' | 'schedule' | 'year' | 'free';
 
 const COLOR_BAR_STYLES: Record<CalendarColor, string> = {
   blue: 'bg-[#C2E7FF] text-[#001D35] dark:bg-[#004A77] dark:text-[#C2E7FF]',
@@ -55,24 +60,6 @@ const COLOR_DOT_STYLES: Record<CalendarColor, string> = {
   purple: 'bg-[#6750A4] dark:bg-[#D0BCFF]',
 };
 
-function matchesRecurrence(
-  originISO: string,
-  targetISO: string,
-  repeat: RecurrenceCycle = 'none'
-): boolean {
-  if (originISO === targetISO) return true;
-  if (repeat === 'none' || targetISO < originISO) return false;
-  if (repeat === 'daily') return true;
-  const [y1, m1, d1] = originISO.split('-').map(Number);
-  const [y2, m2, d2] = targetISO.split('-').map(Number);
-  const dt1 = new Date(y1, m1 - 1, d1);
-  const dt2 = new Date(y2, m2 - 1, d2);
-  if (repeat === 'weekly') return dt1.getDay() === dt2.getDay();
-  if (repeat === 'monthly') return d1 === d2;
-  if (repeat === 'yearly') return m1 === m2 && d1 === d2;
-  return false;
-}
-
 export const CalendarView: React.FC<CalendarViewProps> = ({
   onNewEvent,
   onEditEvent,
@@ -85,6 +72,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     subscriptions,
     preferences,
     toggleTaskCompleted,
+    importCalendarEvents,
   } = useVault();
 
   const todayISO = getTodayISO();
@@ -160,9 +148,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
   const getItemsForDate = (dateISO: string) => {
     const events = showEvents
-      ? calendarEvents.filter((ev) =>
-          matchesRecurrence(ev.date, dateISO, ev.repeat ?? 'none')
-        )
+      ? calendarEvents.filter((ev) => doesEventOccurOnDate(ev, dateISO))
       : [];
     const dueTasks = showTasks
       ? tasks.filter((t) => t.dueDate === dateISO)
@@ -287,6 +273,25 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               <Download className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Export .ics</span>
             </button>
+            <label
+              title="Import events from an .ics file"
+              className="min-h-[36px] px-3 rounded-full border border-[#DADCE0] dark:border-[#3C4043] text-xs font-medium text-[#444746] dark:text-[#C4C7C5] hover:bg-[#F1F3F4] dark:hover:bg-[#282A2C] inline-flex items-center gap-1.5 whitespace-nowrap cursor-pointer"
+            >
+              <Upload className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Import</span>
+              <input
+                type="file"
+                accept=".ics,text/calendar"
+                className="hidden"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  e.target.value = '';
+                  if (!file) return;
+                  const events = parseICS(await file.text());
+                  await importCalendarEvents(events);
+                }}
+              />
+            </label>
             <button
               type="button"
               onClick={() => onNewEvent(selectedDate)}
@@ -306,6 +311,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 { id: 'month', label: 'Month' },
                 { id: 'week', label: 'Week' },
                 { id: 'schedule', label: 'Schedule' },
+                { id: 'year', label: 'Year' },
+                { id: 'free', label: 'Free time' },
               ] as { id: CalendarMode; label: string }[]
             ).map((m) => (
               <button
@@ -367,6 +374,35 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
       </div>
 
       {/* Month View + Selected Day Agenda Split */}
+      {viewMode === 'year' && (
+        <YearGlance
+          year={Number(monthKey.slice(0, 4))}
+          startsMonday={startsMonday}
+          countFor={(iso) => {
+            const { events, dueTasks, renewals } = getItemsForDate(iso);
+            return events.length + dueTasks.filter((t) => !t.completed).length + renewals.length;
+          }}
+          onPickMonth={(mk) => {
+            setMonthKey(mk);
+            setViewMode('month');
+          }}
+          onShiftYear={(d) => setMonthKey((m) => shiftMonthKey(m, d * 12))}
+        />
+      )}
+
+      {viewMode === 'free' && (
+        <FreeTimeFinder
+          weekDates={weekDates.map((w) => w.iso)}
+          eventsFor={(iso) => getItemsForDate(iso).events}
+          onBook={(iso, start) => onNewEvent(iso, start)}
+        />
+      )}
+
+      {/* Colour labels legend */}
+      {(viewMode === 'month' || viewMode === 'week') && (
+        <ColorLabels />
+      )}
+
       {viewMode === 'month' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
           <div className="lg:col-span-2 rounded-3xl border border-[#E1E3E1] dark:border-[#444746] bg-white dark:bg-[#1E1F20] overflow-hidden">
@@ -420,7 +456,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                           key={ev.id}
                           className={`px-1.5 py-0.5 rounded text-[10px] font-medium truncate ${COLOR_BAR_STYLES[ev.color]}`}
                         >
-                          {ev.title}
+                          {eventDisplayTitle(ev, cell.iso)}
                         </div>
                       ))}
                       {dueTasks.slice(0, 1).map((t) => (
@@ -519,7 +555,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                     >
                       <div className="flex items-center justify-between gap-2">
                         <span className="text-sm font-semibold truncate">
-                          {ev.title}
+                          {eventDisplayTitle(ev, selectedDate)}
                         </span>
                         <div className="flex items-center gap-1.5 shrink-0">
                           {dTag && (
@@ -663,7 +699,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                       onClick={() => onEditEvent(ev)}
                       className={`w-full text-left rounded-xl p-2 text-xs space-y-0.5 ${COLOR_BAR_STYLES[ev.color]}`}
                     >
-                      <p className="font-semibold truncate">{ev.title}</p>
+                      <p className="font-semibold truncate">{eventDisplayTitle(ev, wd.iso)}</p>
                       <p className="text-[10px] opacity-85">
                         {ev.allDay
                           ? 'All day'
@@ -765,7 +801,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                           className={`w-full text-left rounded-2xl px-4 py-2.5 flex items-center justify-between gap-3 ${COLOR_BAR_STYLES[ev.color]}`}
                         >
                           <span className="text-sm font-medium truncate">
-                            {ev.title}
+                            {eventDisplayTitle(ev, iso)}
                             {dTag ? ` · ${dTag}` : ''}
                           </span>
                           <span className="text-xs shrink-0">
