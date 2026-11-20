@@ -60,7 +60,9 @@ import {
 } from '../lib/syncEngine';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { applyTypography, resolveTypography } from '../lib/typography';
-import { isNative } from '../lib/native';
+import { isNative, MmvWidgets } from '../lib/native';
+import { applyCustomAccent } from '../lib/accent';
+import { haptic, setHapticsEnabled } from '../lib/haptics';
 import { cancelAllNativeReminders, syncNativeReminders } from '../lib/nativeReminders';
 import {
   clearWidgetSnapshot,
@@ -81,8 +83,19 @@ import {
   rewrapPin,
   unlockWithBiometricMeta,
   unwrapWithPin,
+  logSecurityEvent,
+  masterKeyToRecoveryCode,
+  recoveryCodeToMasterKey,
   type BiometricSupport,
 } from '../lib/quickUnlock';
+
+export type BackupModule =
+  | 'purchases'
+  | 'subscriptions'
+  | 'habits'
+  | 'tasks'
+  | 'events'
+  | 'goals';
 
 export interface PinUnlockResult {
   ok: boolean;
@@ -95,6 +108,7 @@ import {
   createRecordId,
   getOffsetDateISO,
   getTodayISO,
+  setDisplayFormats,
 } from '../lib/format';
 import {
   clearNotificationSentLog,
@@ -179,6 +193,8 @@ interface VaultContextValue {
   removeVaultLock: () => Promise<void>;
   enableBiometricUnlock: () => Promise<void>;
   disableBiometricUnlock: () => Promise<void>;
+  getRecoveryCode: () => Promise<string>;
+  unlockWithRecoveryCode: (code: string) => Promise<boolean>;
   biometricSupport: BiometricSupport;
   canLock: boolean;
   lockVault: () => void;
@@ -268,7 +284,7 @@ interface VaultContextValue {
   sendTestNotification: () => Promise<boolean>;
   runReminderSweepNow: () => Promise<number>;
   exportEncryptedBackup: () => Promise<string>;
-  exportPlaintextBackup: () => string;
+  exportPlaintextBackup: (modules?: BackupModule[]) => string;
   importPlaintextBackup: (rawJson: string) => Promise<number>;
   wipeLocalVault: () => Promise<void>;
 }
@@ -411,6 +427,46 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
     if (phase !== 'unlocked') return;
     applyTypography(resolveTypography(preferences));
   }, [phase, preferences.fontSans, preferences.fontMono, preferences.fontScale]);
+
+  // Privacy screen: blur when the app is backgrounded (web) / FLAG_SECURE (Android)
+  useEffect(() => {
+    const enabled = phase === 'unlocked' && Boolean(preferences.blurOnSwitch);
+    if (isNative()) {
+      void MmvWidgets.setSecureScreen({ enabled }).catch(() => undefined);
+      return;
+    }
+    const root = document.documentElement;
+    if (!enabled) {
+      root.classList.remove('hub-cloak');
+      return;
+    }
+    const onVis = () => root.classList.toggle('hub-cloak', document.visibilityState === 'hidden');
+    const onBlur = () => root.classList.add('hub-cloak');
+    const onFocus = () => root.classList.remove('hub-cloak');
+    document.addEventListener('visibilitychange', onVis);
+    window.addEventListener('blur', onBlur);
+    window.addEventListener('focus', onFocus);
+    return () => {
+      document.removeEventListener('visibilitychange', onVis);
+      window.removeEventListener('blur', onBlur);
+      window.removeEventListener('focus', onFocus);
+      root.classList.remove('hub-cloak');
+    };
+  }, [phase, preferences.blurOnSwitch]);
+
+  // Custom accent colour + 12/24h & date display formats
+  useEffect(() => {
+    if (phase !== 'unlocked') return;
+    applyCustomAccent(
+      preferences.accentTheme === 'custom' ? preferences.customAccent : undefined
+    );
+  }, [phase, preferences.accentTheme, preferences.customAccent]);
+
+  if (phase === 'unlocked') {
+    // Module-level formatter settings must be current before children render
+    setDisplayFormats(preferences.clockFormat, preferences.dateStyle);
+    setHapticsEnabled(preferences.haptics ?? isNative());
+  }
 
   useEffect(() => {
     document.documentElement.dataset.oled = preferences.oledDark
@@ -700,6 +756,7 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
     vaultMeta?.mode === 'passphrase' || Boolean(vaultMeta?.quickUnlock?.pin);
 
   const lockVault = useCallback(() => {
+    if (activeKeyRef.current) logSecurityEvent('locked');
     activeKeyRef.current = null;
     quickKeysRef.current = {};
     setPurchases([]);
@@ -791,6 +848,7 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
         meta.verifierCiphertext
       );
       if (!ok) return false;
+      logSecurityEvent('unlock-passphrase');
       activeKeyRef.current = key;
       lastActivityRef.current = Date.now();
       await reloadAndDecryptRecords(key);
@@ -862,6 +920,7 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
           },
         };
         await saveMeta(next);
+        logSecurityEvent(cooldown > 0 ? 'pin-cooldown' : 'pin-wrong');
         return {
           ok: false,
           attemptsLeft: Math.max(0, PIN_FREE_ATTEMPTS - failedAttempts),
@@ -875,6 +934,7 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
         });
       }
       quickKeysRef.current = { ...quickKeysRef.current, pinKey: res.pinKey };
+      logSecurityEvent('unlock-pin');
       await finishUnlock(res.master);
       return { ok: true };
     },
@@ -890,6 +950,7 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
       throw new Error('Fingerprint key no longer matches. Use your PIN.');
     }
     quickKeysRef.current = { ...quickKeysRef.current, bioKey: key };
+    logSecurityEvent('unlock-fingerprint');
     if (meta.quickUnlock?.failedAttempts) {
       await saveMeta({
         ...meta,
@@ -914,6 +975,7 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
         ...rest,
         quickUnlock: { ...meta.quickUnlock, pin: pinMeta, failedAttempts: 0, lockedUntil: undefined },
       });
+      logSecurityEvent('pin-changed');
       showSnackbar(meta.quickUnlock?.pin ? 'PIN changed' : 'PIN lock enabled');
     },
     [saveMeta, showSnackbar]
@@ -925,6 +987,7 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
     if (!key || !meta) throw new Error('Unlock the vault first.');
     await removeNativeBiometricSecret();
     quickKeysRef.current = {};
+    logSecurityEvent('lock-removed');
     if (meta.mode === 'device') {
       // No passphrase to fall back on → keep the key on-device (auto-unlock)
       const deviceKeyJwk = await crypto.subtle.exportKey('jwk', key);
@@ -946,6 +1009,7 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
     const { meta: bio, key: bioKey } = await enrollBiometric(key);
     quickKeysRef.current = { ...quickKeysRef.current, bioKey };
     await saveMeta({ ...meta, quickUnlock: { ...meta.quickUnlock, bio } });
+    logSecurityEvent('fingerprint-on');
     showSnackbar('Fingerprint unlock enabled');
   }, [saveMeta, showSnackbar]);
 
@@ -957,8 +1021,39 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
     void _bio;
     quickKeysRef.current = { ...quickKeysRef.current, bioKey: undefined };
     await saveMeta({ ...meta, quickUnlock: restQ });
+    logSecurityEvent('fingerprint-off');
     showSnackbar('Fingerprint unlock turned off');
   }, [saveMeta, showSnackbar]);
+
+  const getRecoveryCode = useCallback(async (): Promise<string> => {
+    const key = activeKeyRef.current;
+    if (!key) throw new Error('Unlock the vault first.');
+    logSecurityEvent('recovery-viewed');
+    return masterKeyToRecoveryCode(key);
+  }, []);
+
+  const unlockWithRecoveryCode = useCallback(
+    async (code: string): Promise<boolean> => {
+      const meta = await getLocalVaultMeta();
+      if (!meta) return false;
+      const key = await recoveryCodeToMasterKey(code);
+      if (!key || !(await verifyVaultKey(key, meta.verifierIv, meta.verifierCiphertext))) {
+        return false;
+      }
+      // Clear PIN lockout; user should set a new PIN in Security
+      if (meta.quickUnlock?.failedAttempts || meta.quickUnlock?.lockedUntil) {
+        await saveMeta({
+          ...meta,
+          quickUnlock: { ...meta.quickUnlock, failedAttempts: 0, lockedUntil: undefined },
+        });
+      }
+      logSecurityEvent('unlock-recovery');
+      await finishUnlock(key);
+      showSnackbar('Unlocked with recovery code — set a new PIN in Settings → Security');
+      return true;
+    },
+    [saveMeta, finishUnlock, showSnackbar]
+  );
 
   const signInWithGoogle = useCallback(async () => {
     if (isNative()) {
@@ -1426,6 +1521,7 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
       } else {
         nextLogs[dateISO] = nextVal;
       }
+      haptic(nextVal >= target.targetPerDay ? 'success' : 'tick');
       await persistEncryptedRecord(
         'habit',
         { ...target, logs: nextLogs, updatedAt: Date.now() },
@@ -1649,6 +1745,7 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
       const target = tasks.find((t) => t.id === id);
       if (!target) return;
       const nextCompleted = !target.completed;
+      if (nextCompleted) haptic('success');
       const now = Date.now();
       await persistEncryptedRecord(
         'task',
@@ -2262,6 +2359,7 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
   // Track the newest preferences synchronously so back-to-back updates
   // (fast toggles, time pickers) merge instead of overwriting each other.
   const latestPrefsRef = useRef<HubPreferences>(preferences);
+  const updatePreferencesRef = useRef<((p: Partial<HubPreferences>) => Promise<void>) | null>(null);
   useEffect(() => {
     latestPrefsRef.current = preferences;
   }, [preferences]);
@@ -2290,6 +2388,8 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
     },
     [persistEncryptedRecord, setAccentTheme]
   );
+
+  updatePreferencesRef.current = updatePreferences;
 
   const sendTestNotification = useCallback(async (): Promise<boolean> => {
     const perm =
@@ -2531,6 +2631,7 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
       await saveLocalVaultMeta(nextMeta);
       activeKeyRef.current = newKey;
       setVaultMeta(nextMeta);
+      logSecurityEvent('passphrase-changed');
       if (droppedQuick) {
         showSnackbar('Passphrase set. Set up your PIN / fingerprint again in Security.');
       }
@@ -2589,20 +2690,23 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
     );
   }, []);
 
-  const exportPlaintextBackup = useCallback((): string => {
+  const exportPlaintextBackup = useCallback((modules?: BackupModule[]): string => {
+    const all = !modules || modules.length === 0;
+    const has = (m: BackupModule) => all || modules!.includes(m);
+    logSecurityEvent('backup-exported');
+    void updatePreferencesRef.current?.({ lastBackupAt: Date.now() });
     return JSON.stringify(
       {
         app: 'MMV-HUB',
         format: 'plaintext-backup-v2',
         exportedAt: new Date().toISOString(),
-        preferences,
-        purchases,
-        subscriptions,
-        habits,
-        taskLists,
-        tasks,
-        calendarEvents,
-        goals,
+        ...(all ? { preferences } : {}),
+        ...(has('purchases') ? { purchases } : {}),
+        ...(has('subscriptions') ? { subscriptions } : {}),
+        ...(has('habits') ? { habits } : {}),
+        ...(has('tasks') ? { taskLists, tasks } : {}),
+        ...(has('events') ? { calendarEvents } : {}),
+        ...(has('goals') ? { goals } : {}),
       },
       null,
       2
@@ -2760,6 +2864,8 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
       removeVaultLock,
       enableBiometricUnlock,
       disableBiometricUnlock,
+      getRecoveryCode,
+      unlockWithRecoveryCode,
       biometricSupport,
       canLock,
       lockVault,
@@ -2844,6 +2950,8 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
       removeVaultLock,
       enableBiometricUnlock,
       disableBiometricUnlock,
+      getRecoveryCode,
+      unlockWithRecoveryCode,
       biometricSupport,
       canLock,
       lockVault,

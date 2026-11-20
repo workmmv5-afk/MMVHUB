@@ -36,6 +36,9 @@ import { VaultGate } from './components/VaultGate';
 import { PWAInstallButton } from './components/PWAInstallButton';
 import { LogoWordmark } from './components/Logo';
 import { BiometricOffer } from './components/SecuritySettings';
+import { isBackupDue } from './components/DataSettings';
+import { ReviewSheet } from './components/ReviewSheet';
+import { ShortcutsSheet, useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import {
   useNativeIntegration,
   type NativeIntent,
@@ -181,6 +184,8 @@ const HubShell: React.FC = () => {
   const [appsMenuOpen, setAppsMenuOpen] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [commandOpen, setCommandOpen] = useState(false);
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [commandQuery, setCommandQuery] = useState('');
   const topRightMenusRef = useRef<HTMLDivElement>(null);
 
@@ -371,6 +376,29 @@ const HubShell: React.FC = () => {
       }
       return false;
     },
+  });
+
+  useKeyboardShortcuts({
+    enabled: phase === 'unlocked',
+    go: (tab) => {
+      setRemindersMenuOpen(false);
+      setAppsMenuOpen(false);
+      setAccountMenuOpen(false);
+      setActiveTab(tab);
+    },
+    create: (kind) => {
+      if (kind === 'task') setTaskModal({ open: true, item: null, defaultListId: DEFAULT_TASK_LIST_ID });
+      else if (kind === 'purchase') setPurchaseModal({ open: true, item: null });
+      else if (kind === 'habit') setHabitModal({ open: true, item: null });
+      else if (kind === 'event') setCalendarModal({ open: true, item: null, defaultDate: getTodayISO() });
+      else if (kind === 'goal') setGoalModal({ open: true, item: null });
+    },
+    search: () => {
+      setCommandQuery('');
+      setCommandOpen(true);
+    },
+    review: () => setReviewOpen(true),
+    help: () => setShortcutsOpen(true),
   });
 
   if (phase !== 'unlocked') {
@@ -1073,6 +1101,26 @@ const HubShell: React.FC = () => {
         </div>
       )}
 
+      {isBackupDue(preferences) && activeTab !== 'settings' && (
+        <div className="hub-bg-soft px-4 py-1.5 text-xs flex items-center justify-center gap-3">
+          <span>Backup due</span>
+          <button
+            type="button"
+            onClick={() => navigateSettingsSection('data')}
+            className="font-semibold underline underline-offset-2"
+          >
+            Export now
+          </button>
+          <button
+            type="button"
+            onClick={() => void updatePreferences({ lastBackupAt: Date.now() })}
+            className="opacity-70 hover:opacity-100"
+          >
+            Later
+          </button>
+        </div>
+      )}
+
       {/* Main Content Canvas */}
       <main className="flex-1 min-w-0">
         <div
@@ -1105,6 +1153,7 @@ const HubShell: React.FC = () => {
                 })
               }
               onOpenNewHabit={() => setHabitModal({ open: true, item: null })}
+              onOpenReview={() => setReviewOpen(true)}
               onEditPurchase={(item) =>
                 setPurchaseModal({ open: true, item })
               }
@@ -1195,6 +1244,8 @@ const HubShell: React.FC = () => {
       </main>
 
       <BiometricOffer />
+      {reviewOpen && <ReviewSheet onClose={() => setReviewOpen(false)} />}
+      {shortcutsOpen && <ShortcutsSheet onClose={() => setShortcutsOpen(false)} />}
 
       {/* Google Material 3 Undo Snackbar */}
       {snackbar && (
@@ -1386,6 +1437,22 @@ const HubShell: React.FC = () => {
                   });
                 }
 
+                if (!q || 'review'.includes(q) || 'insights'.includes(q) || 'year in review'.includes(q)) {
+                  actions.push({
+                    id: 'act-review',
+                    label: 'Review & Insights',
+                    meta: 'Week · Month · Year',
+                    onSelect: () => setReviewOpen(true),
+                  });
+                }
+                if (!q || 'keyboard shortcuts'.includes(q)) {
+                  actions.push({
+                    id: 'act-keys',
+                    label: 'Keyboard Shortcuts',
+                    meta: '?',
+                    onSelect: () => setShortcutsOpen(true),
+                  });
+                }
                 if (
                   !q ||
                   'customize widgets'.includes(q) ||

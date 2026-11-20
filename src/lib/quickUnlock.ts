@@ -369,3 +369,107 @@ export async function removeNativeBiometricSecret(): Promise<void> {
     // ignore
   }
 }
+
+// ---------------------------------------------------------------------------
+// Recovery code — the raw 256-bit master key as Crockford base32 groups.
+// Lets a PIN-only vault be opened if the PIN is forgotten.
+// ---------------------------------------------------------------------------
+
+const B32 = '0123456789ABCDEFGHJKMNPQRSTVWXYZ'; // Crockford (no I, L, O, U)
+
+export async function masterKeyToRecoveryCode(master: CryptoKey): Promise<string> {
+  const raw = new Uint8Array(await crypto.subtle.exportKey('raw', master));
+  // 2-byte checksum so typos are caught before trying to decrypt
+  const sum = new Uint8Array(await crypto.subtle.digest('SHA-256', raw)).slice(0, 2);
+  const bytes = new Uint8Array([...raw, ...sum]);
+  raw.fill(0);
+  let bits = 0;
+  let value = 0;
+  let out = '';
+  for (const b of bytes) {
+    value = (value << 8) | b;
+    bits += 8;
+    while (bits >= 5) {
+      out += B32[(value >>> (bits - 5)) & 31];
+      bits -= 5;
+    }
+  }
+  if (bits > 0) out += B32[(value << (5 - bits)) & 31];
+  return out.match(/.{1,4}/g)!.join('-');
+}
+
+export async function recoveryCodeToMasterKey(code: string): Promise<CryptoKey | null> {
+  const clean = code
+    .toUpperCase()
+    .replace(/[\s-]/g, '')
+    .replace(/O/g, '0')
+    .replace(/[IL]/g, '1');
+  if (!/^[0-9A-HJKMNP-TV-Z]+$/.test(clean)) return null;
+  let bits = 0;
+  let value = 0;
+  const bytes: number[] = [];
+  for (const ch of clean) {
+    value = (value << 5) | B32.indexOf(ch);
+    bits += 5;
+    if (bits >= 8) {
+      bytes.push((value >>> (bits - 8)) & 255);
+      bits -= 8;
+    }
+  }
+  if (bytes.length < 34) return null;
+  const raw = new Uint8Array(bytes.slice(0, 32));
+  const sum = new Uint8Array(await crypto.subtle.digest('SHA-256', raw)).slice(0, 2);
+  if (sum[0] !== bytes[32] || sum[1] !== bytes[33]) return null;
+  return crypto.subtle.importKey('raw', raw, { name: 'AES-GCM', length: 256 }, true, [
+    'encrypt',
+    'decrypt',
+  ]);
+}
+
+// ---------------------------------------------------------------------------
+// Local security log (no secrets — event types & timestamps only)
+// ---------------------------------------------------------------------------
+
+export type SecurityEvent =
+  | 'unlock-pin'
+  | 'unlock-fingerprint'
+  | 'unlock-passphrase'
+  | 'unlock-recovery'
+  | 'pin-wrong'
+  | 'pin-cooldown'
+  | 'locked'
+  | 'pin-changed'
+  | 'lock-removed'
+  | 'fingerprint-on'
+  | 'fingerprint-off'
+  | 'passphrase-changed'
+  | 'recovery-viewed'
+  | 'backup-exported';
+
+const LOG_KEY = 'mmv_security_log';
+
+export function logSecurityEvent(type: SecurityEvent): void {
+  try {
+    const log = JSON.parse(localStorage.getItem(LOG_KEY) || '[]') as { t: number; e: SecurityEvent }[];
+    log.unshift({ t: Date.now(), e: type });
+    localStorage.setItem(LOG_KEY, JSON.stringify(log.slice(0, 60)));
+  } catch {
+    // ignore
+  }
+}
+
+export function readSecurityLog(): { t: number; e: SecurityEvent }[] {
+  try {
+    return JSON.parse(localStorage.getItem(LOG_KEY) || '[]');
+  } catch {
+    return [];
+  }
+}
+
+export function clearSecurityLog(): void {
+  try {
+    localStorage.removeItem(LOG_KEY);
+  } catch {
+    // ignore
+  }
+}

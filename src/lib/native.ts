@@ -10,6 +10,7 @@ export const isNative = (): boolean => Capacitor.isNativePlatform();
 interface MmvWidgetsPlugin {
   setSnapshot(opts: { json: string }): Promise<void>;
   clear(): Promise<void>;
+  setSecureScreen(opts: { enabled: boolean }): Promise<void>;
 }
 
 export const MmvWidgets = registerPlugin<MmvWidgetsPlugin>('MmvWidgets');

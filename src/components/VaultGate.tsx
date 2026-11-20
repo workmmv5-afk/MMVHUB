@@ -3,8 +3,9 @@ import { Delete, Eye, EyeOff, Fingerprint } from 'lucide-react';
 import { useVault } from '../context/VaultContext';
 import { LogoMark } from './Logo';
 import { PIN_MAX, PIN_MIN, isNativeApp } from '../lib/quickUnlock';
+import { haptic } from '../lib/haptics';
 
-type Step = 'pin' | 'confirm' | 'passphrase';
+type Step = 'pin' | 'confirm' | 'passphrase' | 'recovery';
 
 const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'bio', '0', 'del'] as const;
 
@@ -48,6 +49,7 @@ export const VaultGate: React.FC = () => {
     unlockWithPin,
     unlockWithBiometric,
     unlockWithPassphrase,
+    unlockWithRecoveryCode,
     signInWithGoogle,
     signOutGoogle,
     wipeLocalVault,
@@ -74,6 +76,7 @@ export const VaultGate: React.FC = () => {
   );
   const [now, setNow] = useState(Date.now());
   const [confirmWipe, setConfirmWipe] = useState(false);
+  const [recoveryCode, setRecoveryCode] = useState('');
   const bioTried = useRef(false);
 
   // Keep step sensible when vault meta loads/changes (e.g. Google restore)
@@ -92,10 +95,10 @@ export const VaultGate: React.FC = () => {
   }, [lockedUntil]);
 
   const fail = (msg: string) => {
+    haptic('warning');
     setError(msg);
     setShake(true);
     window.setTimeout(() => setShake(false), 400);
-    if ('vibrate' in navigator) navigator.vibrate?.(80);
   };
 
   const tryBiometric = useCallback(async () => {
@@ -178,6 +181,7 @@ export const VaultGate: React.FC = () => {
         return;
       }
       if (k === 'bio') return;
+      haptic('tick');
       setPin((p) => {
         if (p.length >= PIN_MAX) return p;
         const next = p + k;
@@ -194,7 +198,7 @@ export const VaultGate: React.FC = () => {
 
   // Physical keyboard support on the PIN pad
   useEffect(() => {
-    if (step === 'passphrase') return;
+    if (step === 'passphrase' || step === 'recovery') return;
     const onKey = (e: KeyboardEvent) => {
       if (/^\d$/.test(e.key)) press(e.key as (typeof KEYS)[number]);
       else if (e.key === 'Backspace') press('del');
@@ -255,7 +259,9 @@ export const VaultGate: React.FC = () => {
         : 'Create a PIN'
     : step === 'passphrase'
       ? 'Enter passphrase'
-      : 'Enter PIN';
+      : step === 'recovery'
+        ? 'Recovery code'
+        : 'Enter PIN';
 
   const linkCls =
     'text-xs font-medium text-[#5F6368] dark:text-[#9AA0A6] hover:text-[var(--hub-accent)] min-h-[36px] px-2';
@@ -273,7 +279,47 @@ export const VaultGate: React.FC = () => {
           )}
         </div>
 
-        {step !== 'passphrase' ? (
+        {step === 'recovery' ? (
+          <form
+            className="w-full space-y-3"
+            onSubmit={async (e) => {
+              e.preventDefault();
+              setError('');
+              setBusy(true);
+              try {
+                if (!(await unlockWithRecoveryCode(recoveryCode))) {
+                  fail('That code doesn’t match this vault.');
+                }
+              } finally {
+                setBusy(false);
+              }
+            }}
+          >
+            <textarea
+              value={recoveryCode}
+              onChange={(e) => setRecoveryCode(e.target.value)}
+              rows={3}
+              autoFocus
+              spellCheck={false}
+              autoCapitalize="characters"
+              placeholder="XXXX-XXXX-XXXX-…"
+              aria-label="Recovery code"
+              className="w-full rounded-2xl border border-[#DADCE0] dark:border-[#3C4043] bg-white dark:bg-[#1E1F20] px-4 py-3 font-mono text-sm tracking-wide focus:outline-none focus:border-[var(--hub-accent)] resize-none"
+            />
+            {error && (
+              <p role="alert" className="text-xs text-center text-[#C5221F] dark:text-[#F28B82]">
+                {error}
+              </p>
+            )}
+            <button
+              type="submit"
+              disabled={busy || recoveryCode.trim().length < 20}
+              className="w-full min-h-[48px] rounded-full hub-bg-accent text-sm font-medium disabled:opacity-50"
+            >
+              {busy ? 'Checking…' : 'Unlock'}
+            </button>
+          </form>
+        ) : step !== 'passphrase' ? (
           <>
             <PinDots
               value={pin}
@@ -444,6 +490,19 @@ export const VaultGate: React.FC = () => {
           {user && (
             <button type="button" className={linkCls} onClick={() => void signOutGoogle()}>
               Sign out
+            </button>
+          )}
+
+          {!isSetup && (
+            <button
+              type="button"
+              className={linkCls}
+              onClick={() => {
+                setError('');
+                setStep(step === 'recovery' ? (hasPin ? 'pin' : 'passphrase') : 'recovery');
+              }}
+            >
+              {step === 'recovery' ? 'Back' : 'Recovery code'}
             </button>
           )}
 

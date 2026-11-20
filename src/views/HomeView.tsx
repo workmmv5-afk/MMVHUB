@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowRight,
+  BarChart3,
   BellRing,
   CalendarPlus,
   Check,
@@ -18,6 +19,7 @@ import {
   RotateCcw,
   Star,
   StickyNote,
+  Sunrise,
   Target,
   Timer,
 } from 'lucide-react';
@@ -47,6 +49,7 @@ import {
 } from '../lib/notifications';
 import { resolveHomeWidgets } from '../lib/homeWidgets';
 import { WidgetCustomizer } from '../components/WidgetCustomizer';
+import { startAmbient, stopAmbient, type AmbientKind } from '../lib/ambient';
 import { GOAL_COLOR_CLASSES, getGoalPace } from './GoalsView';
 import type {
   CalendarEventRecord,
@@ -66,6 +69,7 @@ interface HomeViewProps {
   onOpenNewEvent: (dateISO?: string) => void;
   onOpenNewTask: () => void;
   onOpenNewHabit: () => void;
+  onOpenReview: () => void;
   onEditPurchase: (purchase: PurchaseRecord) => void;
   onEditSubscription: (sub: SubscriptionRecord) => void;
   onEditHabit: (habit: HabitRecord) => void;
@@ -132,6 +136,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
   onOpenNewEvent,
   onOpenNewTask,
   onOpenNewHabit,
+  onOpenReview,
   onEditPurchase,
   onEditSubscription,
   onEditHabit,
@@ -192,6 +197,16 @@ export const HomeView: React.FC<HomeViewProps> = ({
   );
   const [focusTaskId, setFocusTaskId] = useState<string>(storedTimer.taskId);
   const timerRunning = endsAt !== null;
+  const [ambient, setAmbient] = useState<AmbientKind>(
+    () => (localStorage.getItem('mmv_focus_ambient') as AmbientKind) || 'off'
+  );
+
+  // Ambient sound plays only while a focus session is running
+  useEffect(() => {
+    if (timerRunning && ambient !== 'off') startAmbient(ambient);
+    else stopAmbient();
+    return () => stopAmbient();
+  }, [timerRunning, ambient]);
 
   useEffect(() => {
     try {
@@ -796,6 +811,32 @@ export const HomeView: React.FC<HomeViewProps> = ({
                   ))}
                 </div>
 
+                <div
+                  role="radiogroup"
+                  aria-label="Focus sound"
+                  className="inline-flex items-center gap-1 text-[11px]"
+                >
+                  {(['off', 'brown', 'rain'] as const).map((k) => (
+                    <button
+                      key={k}
+                      type="button"
+                      role="radio"
+                      aria-checked={ambient === k}
+                      onClick={() => {
+                        setAmbient(k);
+                        localStorage.setItem('mmv_focus_ambient', k);
+                      }}
+                      className={`min-h-[28px] px-2.5 rounded-full font-medium ${
+                        ambient === k
+                          ? 'hub-bg-soft'
+                          : 'text-[#5F6368] dark:text-[#9AA0A6] hover:bg-[#F1F3F4] dark:hover:bg-[#282A2C]'
+                      }`}
+                    >
+                      {k === 'off' ? '🔇 Silent' : k === 'brown' ? '🌊 Brown noise' : '🌧 Rain'}
+                    </button>
+                  ))}
+                </div>
+
                 {openTasks.length > 0 && (
                   <select
                     aria-label="Link focus session to task"
@@ -1214,6 +1255,38 @@ export const HomeView: React.FC<HomeViewProps> = ({
           </section>
         );
 
+      case 'briefing': {
+        const hour = new Date().getHours();
+        const firstEvent = calendarEvents
+          .filter((ev) => doesEventOccurOnDate(ev, todayISO) && !ev.allDay && (ev.startTime ?? '') >= `${String(hour).padStart(2, '0')}:00`)
+          .sort((a, b) => (a.startTime ?? '').localeCompare(b.startTime ?? ''))[0];
+        const renewalsToday = subscriptions.filter((s) => s.active && s.nextBillingDate === todayISO);
+        const habitsLeft = scheduledTodayHabits.length - habitsCompletedToday;
+        const tasksLeft = tasksDueToday.length - tasksCompletedToday;
+        const parts: string[] = [];
+        if (tasksLeft > 0) parts.push(`${tasksLeft} task${tasksLeft === 1 ? '' : 's'}`);
+        if (habitsLeft > 0) parts.push(`${habitsLeft} habit${habitsLeft === 1 ? '' : 's'}`);
+        if (overdueCount > 0) parts.push(`${overdueCount} overdue`);
+        return (
+          <section className={`${CARD_CLASS} p-4 sm:p-5 flex items-start gap-3`}>
+            <Sunrise className="w-5 h-5 hub-text-accent shrink-0 mt-0.5" />
+            <div className="min-w-0 space-y-0.5">
+              <p className="text-sm font-semibold text-[#202124] dark:text-[#E8EAED]">
+                {parts.length ? `Today: ${parts.join(' · ')}` : 'Nothing pending today 🎉'}
+              </p>
+              <p className="text-xs text-[#5F6368] dark:text-[#9AA0A6]">
+                {firstEvent
+                  ? `Next: ${firstEvent.title} at ${formatTime12h(firstEvent.startTime)}`
+                  : 'No more timed events today'}
+                {renewalsToday.length > 0
+                  ? ` · ${renewalsToday.length} renewal${renewalsToday.length === 1 ? '' : 's'} due`
+                  : ''}
+              </p>
+            </div>
+          </section>
+        );
+      }
+
       case 'goals':
         return (
           <section className={`${CARD_CLASS} p-4 sm:p-5 space-y-3`}>
@@ -1525,16 +1598,28 @@ export const HomeView: React.FC<HomeViewProps> = ({
           <span className="text-[#34A853] dark:text-[#81C995]">U</span>
           <span className="text-[#EA4335] dark:text-[#F28B82]">B</span>
         </h1>
-        <button
-          type="button"
-          onClick={() => setCustomizerOpen(true)}
-          title="Customize widgets"
-          aria-label="Customize home widgets"
-          className="absolute right-0 top-0 min-h-[36px] px-3 rounded-full text-xs font-medium text-[#5F6368] dark:text-[#9AA0A6] hover:bg-[#F1F3F4] dark:hover:bg-[#282A2C] inline-flex items-center gap-1.5"
-        >
-          <LayoutGrid className="w-4 h-4" />
-          <span className="hidden sm:inline">Customize</span>
-        </button>
+        <div className="absolute right-0 top-0 flex items-center">
+          <button
+            type="button"
+            onClick={onOpenReview}
+            title="Review"
+            aria-label="Open review and insights"
+            className="min-h-[36px] min-w-[36px] px-2.5 rounded-full text-xs font-medium text-[#5F6368] dark:text-[#9AA0A6] hover:bg-[#F1F3F4] dark:hover:bg-[#282A2C] inline-flex items-center gap-1.5"
+          >
+            <BarChart3 className="w-4 h-4" />
+            <span className="hidden sm:inline">Review</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setCustomizerOpen(true)}
+            title="Customize widgets"
+            aria-label="Customize home widgets"
+            className="min-h-[36px] min-w-[36px] px-2.5 rounded-full text-xs font-medium text-[#5F6368] dark:text-[#9AA0A6] hover:bg-[#F1F3F4] dark:hover:bg-[#282A2C] inline-flex items-center gap-1.5"
+          >
+            <LayoutGrid className="w-4 h-4" />
+            <span className="hidden sm:inline">Customize</span>
+          </button>
+        </div>
       </section>
 
       {renderedWidgets.length === 0 ? (

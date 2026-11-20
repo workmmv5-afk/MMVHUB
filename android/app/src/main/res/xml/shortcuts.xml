@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="new_task"
+        android:enabled="true"
+        android:icon="@drawable/ic_sc_task"
+        android:shortcutShortLabel="@string/sc_new_task">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="mmvhub://new/task"
+            android:targetClass="com.mmvhub.mobile.MainActivity"
+            android:targetPackage="com.mmvhub.mobile" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="new_spend"
+        android:enabled="true"
+        android:icon="@drawable/ic_sc_spend"
+        android:shortcutShortLabel="@string/sc_new_spend">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="mmvhub://new/purchase"
+            android:targetClass="com.mmvhub.mobile.MainActivity"
+            android:targetPackage="com.mmvhub.mobile" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="habits"
+        android:enabled="true"
+        android:icon="@drawable/ic_sc_habit"
+        android:shortcutShortLabel="@string/sc_habits">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="mmvhub://open/habits"
+            android:targetClass="com.mmvhub.mobile.MainActivity"
+            android:targetPackage="com.mmvhub.mobile" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="new_event"
+        android:enabled="true"
+        android:icon="@drawable/ic_sc_event"
+        android:shortcutShortLabel="@string/sc_new_event">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="mmvhub://new/event"
+            android:targetClass="com.mmvhub.mobile.MainActivity"
+            android:targetPackage="com.mmvhub.mobile" />
+    </shortcut>
+</shortcuts>

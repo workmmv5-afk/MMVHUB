@@ -41,6 +41,13 @@
           }
           var accent = localStorage.getItem('mmv_hub_accent') || 'blue';
           document.documentElement.dataset.accent = accent;
+          var customAccent = localStorage.getItem('mmv_hub_custom_accent');
+          if (customAccent) {
+            var st = document.createElement('style');
+            st.id = 'hub-custom-accent';
+            st.textContent = customAccent;
+            document.head.appendChild(st);
+          }
           var typo = JSON.parse(localStorage.getItem('mmv_hub_typography') || 'null');
           if (typo) {
             var root = document.documentElement;

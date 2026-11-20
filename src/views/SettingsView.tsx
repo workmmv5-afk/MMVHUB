@@ -23,6 +23,7 @@ import { WidgetCustomizer } from '../components/WidgetCustomizer';
 import { TypographySettings } from '../components/TypographySettings';
 import { SecuritySettings } from '../components/SecuritySettings';
 import { PhoneWidgetSettings } from '../components/PhoneWidgetSettings';
+import { DataSettings } from '../components/DataSettings';
 import { getWidgetMeta, resolveHomeWidgets } from '../lib/homeWidgets';
 import {
   collectDueReminders,
@@ -36,7 +37,7 @@ import type {
   UiDensity,
 } from '../types';
 
-export type SettingsSection = 'themes' | 'notifications' | 'widgets';
+export type SettingsSection = 'themes' | 'notifications' | 'widgets' | 'data';
 
 interface SettingsViewProps {
   focusSection?: SettingsSection | null;
@@ -197,7 +198,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           ? notificationsSectionRef.current
           : focusSection === 'widgets'
             ? widgetsSectionRef.current
-            : null;
+            : focusSection === 'data'
+              ? document.getElementById('settings-data')
+              : null;
     if (target) {
       target.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
@@ -449,6 +452,29 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 </button>
               );
             })}
+            <label
+              className={`min-h-[46px] px-3.5 rounded-2xl border flex items-center justify-between gap-2 text-xs font-medium cursor-pointer transition-colors ${
+                accentTheme === 'custom'
+                  ? 'hub-bg-soft hub-border-accent'
+                  : 'border-[#DADCE0] dark:border-[#444746] text-[#1F1F1F] dark:text-[#E3E3E3] hover:bg-[#F8F9FA] dark:hover:bg-[#282A2C]'
+              }`}
+            >
+              <span className="flex items-center gap-2.5 min-w-0">
+                <input
+                  type="color"
+                  aria-label="Custom accent colour"
+                  value={preferences.customAccent ?? '#0F9D58'}
+                  onChange={(e) => {
+                    const hex = e.target.value;
+                    setAccentTheme('custom');
+                    void updatePreferences({ accentTheme: 'custom', customAccent: hex });
+                  }}
+                  className="w-5 h-5 rounded-full shrink-0 border-0 p-0 bg-transparent cursor-pointer [&::-webkit-color-swatch-wrapper]:p-0 [&::-webkit-color-swatch]:rounded-full [&::-webkit-color-swatch]:border-black/10"
+                />
+                <span className="truncate">Custom</span>
+              </span>
+              {accentTheme === 'custom' && <Check className="w-3.5 h-3.5 shrink-0" />}
+            </label>
           </div>
         </div>
 
@@ -1083,6 +1109,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       </section>
 
       <SecuritySettings />
+
+      <DataSettings />
 
       {/* Encryption & Vault Security */}
       <section className="rounded-3xl border border-[#E1E3E1] dark:border-[#444746] bg-white dark:bg-[#1E1F20] p-5 sm:p-6 space-y-5">

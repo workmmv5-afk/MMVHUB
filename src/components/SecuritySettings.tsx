@@ -1,7 +1,42 @@
 import React, { useState } from 'react';
-import { Fingerprint, KeyRound, Lock, ShieldCheck } from 'lucide-react';
+import {
+  ClipboardX,
+  Copy,
+  EyeOff,
+  Fingerprint,
+  History,
+  KeyRound,
+  LifeBuoy,
+  Lock,
+  ShieldCheck,
+} from 'lucide-react';
 import { useVault } from '../context/VaultContext';
-import { PIN_MAX, PIN_MIN, isValidPin } from '../lib/quickUnlock';
+import {
+  PIN_MAX,
+  PIN_MIN,
+  isValidPin,
+  readSecurityLog,
+  type SecurityEvent,
+} from '../lib/quickUnlock';
+import { copyWithAutoClear } from '../lib/clipboard';
+import { isNative } from '../lib/native';
+
+const EVENT_LABELS: Partial<Record<SecurityEvent, string>> = {
+  'unlock-pin': 'Unlocked with PIN',
+  'unlock-fingerprint': 'Unlocked with fingerprint',
+  'unlock-passphrase': 'Unlocked with passphrase',
+  'unlock-recovery': 'Unlocked with recovery code',
+  'pin-wrong': 'Wrong PIN',
+  'pin-cooldown': 'Wrong PIN · cooldown',
+  locked: 'Locked',
+  'pin-changed': 'PIN set / changed',
+  'lock-removed': 'Lock removed',
+  'fingerprint-on': 'Fingerprint on',
+  'fingerprint-off': 'Fingerprint off',
+  'passphrase-changed': 'Passphrase changed',
+  'recovery-viewed': 'Recovery code viewed',
+  'backup-exported': 'Backup exported',
+};
 
 const row =
   'flex items-center justify-between gap-3 py-3 border-t border-[#F0F4F9] dark:border-[#282A2C] first:border-t-0';
@@ -18,6 +53,9 @@ export const SecuritySettings: React.FC = () => {
     enableBiometricUnlock,
     disableBiometricUnlock,
     lockVault,
+    getRecoveryCode,
+    preferences,
+    updatePreferences,
   } = useVault();
 
   const hasPin = Boolean(vaultMeta?.quickUnlock?.pin);
@@ -28,6 +66,9 @@ export const SecuritySettings: React.FC = () => {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [confirmRemove, setConfirmRemove] = useState(false);
+  const [recovery, setRecovery] = useState('');
+  const [copied, setCopied] = useState(false);
+  const [showLog, setShowLog] = useState(false);
 
   const run = async (fn: () => Promise<void>) => {
     setError('');
@@ -160,6 +201,131 @@ export const SecuritySettings: React.FC = () => {
           </button>
         )}
       </div>
+
+      {/* Recovery code */}
+      <div className={row}>
+        <div className="flex items-center gap-2.5 min-w-0">
+          <LifeBuoy className="w-4 h-4 text-[#5F6368] dark:text-[#9AA0A6] shrink-0" />
+          <div className="min-w-0">
+            <p className="text-sm font-medium">Recovery code</p>
+            <p className="text-[11px] text-[#5F6368] dark:text-[#9AA0A6]">
+              {vaultMeta?.mode === 'device' ? 'Opens your vault if you forget the PIN' : 'Backup way in'}
+            </p>
+          </div>
+        </div>
+        <button
+          type="button"
+          className={btn}
+          disabled={busy}
+          onClick={() =>
+            recovery
+              ? setRecovery('')
+              : void run(async () => setRecovery(await getRecoveryCode()))
+          }
+        >
+          {recovery ? 'Hide' : 'Show'}
+        </button>
+      </div>
+      {recovery && (
+        <div className="pb-3 space-y-2">
+          <p className="font-mono text-[13px] leading-relaxed tracking-wide break-all rounded-xl bg-[#F1F3F4] dark:bg-[#282A2C] px-3 py-2 select-all">
+            {recovery}
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              className={`${btn} inline-flex items-center gap-1.5`}
+              onClick={() =>
+                void copyWithAutoClear(recovery, preferences.clipboardClearSeconds ?? 30).then(
+                  (ok) => setCopied(ok)
+                )
+              }
+            >
+              <Copy className="w-3.5 h-3.5" />
+              {copied ? 'Copied' : 'Copy'}
+            </button>
+            <span className="text-[11px] text-[#5F6368] dark:text-[#9AA0A6]">
+              Store offline. Anyone with it can open this vault.
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* Privacy screen */}
+      <div className={row}>
+        <div className="flex items-center gap-2.5 min-w-0">
+          <EyeOff className="w-4 h-4 text-[#5F6368] dark:text-[#9AA0A6] shrink-0" />
+          <div className="min-w-0">
+            <p className="text-sm font-medium">Privacy screen</p>
+            <p className="text-[11px] text-[#5F6368] dark:text-[#9AA0A6]">
+              {isNative() ? 'Hide in Recents · block screenshots' : 'Blur when you switch away'}
+            </p>
+          </div>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={Boolean(preferences.blurOnSwitch)}
+          onClick={() => void updatePreferences({ blurOnSwitch: !preferences.blurOnSwitch })}
+          className={preferences.blurOnSwitch ? 'min-h-[38px] px-4 rounded-full hub-bg-accent text-xs font-medium' : btn}
+        >
+          {preferences.blurOnSwitch ? 'On' : 'Off'}
+        </button>
+      </div>
+
+      {/* Clipboard */}
+      <div className={row}>
+        <div className="flex items-center gap-2.5 min-w-0">
+          <ClipboardX className="w-4 h-4 text-[#5F6368] dark:text-[#9AA0A6] shrink-0" />
+          <p className="text-sm font-medium">Clear copied secrets</p>
+        </div>
+        <select
+          aria-label="Clear clipboard after"
+          value={preferences.clipboardClearSeconds ?? 30}
+          onChange={(e) => void updatePreferences({ clipboardClearSeconds: Number(e.target.value) })}
+          className="min-h-[38px] rounded-full border border-[#DADCE0] dark:border-[#444746] bg-white dark:bg-[#1E1F20] px-3 text-xs"
+        >
+          <option value={0}>Never</option>
+          <option value={15}>After 15 s</option>
+          <option value={30}>After 30 s</option>
+          <option value={60}>After 1 min</option>
+        </select>
+      </div>
+
+      {/* Activity log */}
+      <div className={row}>
+        <div className="flex items-center gap-2.5 min-w-0">
+          <History className="w-4 h-4 text-[#5F6368] dark:text-[#9AA0A6] shrink-0" />
+          <p className="text-sm font-medium">Security activity</p>
+        </div>
+        <button type="button" className={btn} onClick={() => setShowLog((v) => !v)}>
+          {showLog ? 'Hide' : 'View'}
+        </button>
+      </div>
+      {showLog && (
+        <ul className="pb-3 space-y-1 max-h-56 overflow-y-auto">
+          {readSecurityLog().length === 0 && (
+            <li className="text-xs text-[#5F6368] dark:text-[#9AA0A6]">No events yet.</li>
+          )}
+          {readSecurityLog()
+            .slice(0, 25)
+            .map((ev) => (
+              <li key={`${ev.t}-${ev.e}`} className="flex items-center justify-between gap-3 text-xs">
+                <span className={/wrong|cooldown/.test(ev.e) ? 'text-[#C5221F] dark:text-[#F28B82]' : ''}>
+                  {EVENT_LABELS[ev.e] ?? ev.e}
+                </span>
+                <span className="font-mono text-[11px] text-[#5F6368] dark:text-[#9AA0A6] shrink-0">
+                  {new Date(ev.t).toLocaleString(undefined, {
+                    month: 'short',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
+                </span>
+              </li>
+            ))}
+        </ul>
+      )}
 
       {/* Lock now / remove lock */}
       {canLock && (

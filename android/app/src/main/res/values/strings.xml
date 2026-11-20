@@ -12,4 +12,8 @@
     <string name="widget_spend_desc">This month\'s spending vs budget</string>
     <string name="widget_goals_label">MMV Goals</string>
     <string name="widget_goals_desc">Progress on your active goals</string>
+    <string name="sc_new_task">New task</string>
+    <string name="sc_new_spend">Log purchase</string>
+    <string name="sc_habits">Today\'s habits</string>
+    <string name="sc_new_event">New event</string>
 </resources>

@@ -269,7 +269,8 @@ export type AccentTheme =
   | 'slate'
   | 'plum'
   | 'amber'
-  | 'crimson';
+  | 'crimson'
+  | 'custom';
 
 export type UiDensity = 'comfortable' | 'compact';
 
@@ -321,6 +322,7 @@ export interface PhoneWidgetConfig {
 
 export type HomeWidgetId =
   | 'reminders'
+  | 'briefing'
   | 'snapshot'
   | 'quickActions'
   | 'focus'
@@ -349,6 +351,14 @@ export interface HubPreferences {
   oledDark?: boolean;
   privacyBlur?: boolean;
   density?: UiDensity;
+  customAccent?: string; // #RRGGBB when accentTheme === 'custom'
+  clockFormat?: '12h' | '24h';
+  dateStyle?: 'mdy' | 'dmy' | 'iso';
+  haptics?: boolean;
+  blurOnSwitch?: boolean;
+  clipboardClearSeconds?: number; // 0 = never
+  backupReminderDays?: number; // 0 = off
+  lastBackupAt?: number;
   fontSans?: TypographySans;
   fontMono?: TypographyMono;
   fontScale?: number; // 0.9 .. 1.2

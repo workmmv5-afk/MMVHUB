@@ -50,11 +50,27 @@ export function formatMonthLabel(monthKey: string): string {
   return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 }
 
+// ---- User display formats (set from preferences by VaultContext) ----
+export type DateStyle = 'mdy' | 'dmy' | 'iso';
+let displayClock: '12h' | '24h' = '12h';
+let displayDateStyle: DateStyle = 'mdy';
+
+export function setDisplayFormats(clock?: '12h' | '24h', dateStyle?: DateStyle): void {
+  displayClock = clock === '24h' ? '24h' : '12h';
+  displayDateStyle = dateStyle === 'dmy' || dateStyle === 'iso' ? dateStyle : 'mdy';
+}
+
 export function formatShortDate(dateISO: string): string {
   if (!dateISO) return '';
   const [y, m, d] = dateISO.split('-').map(Number);
   const date = new Date(y, m - 1, d);
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  if (displayDateStyle === 'iso') {
+    return `${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+  }
+  return date.toLocaleDateString(displayDateStyle === 'dmy' ? 'en-GB' : 'en-US', {
+    month: 'short',
+    day: 'numeric',
+  });
 }
 
 export function formatTime12h(hhmm?: string): string {
@@ -63,6 +79,9 @@ export function formatTime12h(hhmm?: string): string {
   const h = Number(hStr);
   const m = Number(mStr);
   if (Number.isNaN(h) || Number.isNaN(m)) return hhmm;
+  if (displayClock === '24h') {
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+  }
   const suffix = h >= 12 ? 'PM' : 'AM';
   const hour12 = h % 12 === 0 ? 12 : h % 12;
   return `${hour12}:${String(m).padStart(2, '0')} ${suffix}`;

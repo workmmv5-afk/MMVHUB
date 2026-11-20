@@ -25,6 +25,14 @@ export const HOME_WIDGET_CATALOG: HomeWidgetMeta[] = [
     resizable: false,
   },
   {
+    id: 'briefing',
+    label: 'Daily Briefing',
+    description: 'One line: what’s left today and what’s next.',
+    defaultSize: 'full',
+    defaultVisible: false,
+    resizable: true,
+  },
+  {
     id: 'snapshot',
     label: 'Snapshot Stats',
     description: 'Month spend, today’s goals ring, open tasks, 30-day renewals.',
