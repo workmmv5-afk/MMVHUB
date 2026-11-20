@@ -2330,6 +2330,10 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
           data.endDate && data.endDate > data.date && (!data.repeat || data.repeat === 'none')
             ? data.endDate
             : undefined,
+        timeZone: !data.allDay && data.timeZone ? data.timeZone : undefined,
+        tzDate: !data.allDay && data.timeZone ? data.tzDate : undefined,
+        tzStart: !data.allDay && data.timeZone ? data.tzStart : undefined,
+        tzEnd: !data.allDay && data.timeZone ? data.tzEnd : undefined,
         birthYear:
           data.repeat === 'yearly' && data.birthYear && data.birthYear > 1900 && data.birthYear <= new Date().getFullYear()
             ? Math.round(data.birthYear)

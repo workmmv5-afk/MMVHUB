@@ -236,14 +236,13 @@ src/
 
 ## Roadmap Status
 
-**85 of 100 shipped** · 20 existed before v2.0, 65 added since · 15 not done (reasons below).
+**87 of 100 shipped** · 20 existed before v2.0, 67 added since · 13 not done (reasons below).
 
 | Status | Items |
 | :--- | :--- |
 | ✅ Already in v1 | 003, 008, 009, 011, 014, 015, 017, 021, 023, 027, 031, 034 (built-in smart views), 035, 039, 040, 051, 054, 055, 091, 099 |
 | ✅ Added in v2.0 | 001, 002, 004, 006 (Goals page), 007, 010, 012, 013, 016, 018, 019, 020, 024, 025, 026, 028, 029, 030, 032, 033, 036, 037, 038, 042, 043, 044, 045, 046, 047, 049, 050, 052, 053, 057, 058 (sound / vibrate / pop-up channels), 059, 060, 061, 062, 063, 064, 065, 066, 068, 069, 070, 072, 073, 077, 080, 081 (fingerprint), 082, 084, 085, 086, 088, 089, 092, 093, 095, 096, 097, 098, 100 |
-| ✅ Added in v2.1 | 022 Habit routines (step-by-step runner) |
-| ⏳ Not yet | 041 Drag-to-reschedule · 048 Per-event timezone — feasible, not built yet |
+| ✅ Added in v2.1 | 022 Habit routines (step-by-step runner), 041 Drag-to-reschedule (week & month; long-press on phones), 048 Per-event time zone |
 | 🚫 Needs backend / rules change | 071 Device sessions, 094 Notes drawer (new Firestore kinds must be added to `firestore.rules` and deployed first) |
 | 🚫 Unsafe or breaks compatibility | 076 Tombstone GC (devices offline >90 days could resurrect data), 083 Duress PIN, 087 Argon2id, 090 KDF tuner (existing vaults & other devices could no longer unlock) |
 | 🚫 Out of scope for this app | 005 On-device OCR (large ML model), 056 Geofencing, 067 Wear OS, 074 Conflict merge UI, 075 P2P QR transfer, 078 Web-worker decrypt, 079 Periodic background sync |

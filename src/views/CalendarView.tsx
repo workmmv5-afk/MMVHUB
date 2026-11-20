@@ -14,6 +14,8 @@ import {
 } from 'lucide-react';
 import { useVault } from '../context/VaultContext';
 import { parseICS } from '../lib/ics';
+import { useDragReschedule } from '../hooks/useDragReschedule';
+import { zoneShortName } from '../lib/timezone';
 import { ColorLabels, FreeTimeFinder, YearGlance } from '../components/CalendarExtras';
 import type {
   CalendarColor,
@@ -26,6 +28,7 @@ import {
   buildCalendarICS,
   doesEventOccurOnDate,
   eventDisplayTitle,
+  getOffsetDateISO,
   formatCurrency,
   formatMonthLabel,
   formatShortDate,
@@ -74,7 +77,28 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     preferences,
     toggleTaskCompleted,
     importCalendarEvents,
+    saveCalendarEvent,
+    saveTask,
   } = useVault();
+
+  // Drag-to-reschedule (week columns & month cells). Recurring events are
+  // not draggable — moving them would shift the whole series.
+  const { bind, dropClass, ghost } = useDragReschedule((item, dateISO) => {
+    if (item.kind === 'event') {
+      const ev = calendarEvents.find((e) => e.id === item.id);
+      if (!ev) return;
+      // Multi-day events keep their length
+      const delta = getDaysUntil(dateISO, ev.date);
+      void saveCalendarEvent({
+        ...ev,
+        date: dateISO,
+        endDate: ev.endDate ? getOffsetDateISO(delta, ev.endDate) : undefined,
+      });
+    } else {
+      const t = tasks.find((x) => x.id === item.id);
+      if (t) void saveTask({ ...t, dueDate: dateISO });
+    }
+  });
 
   const todayISO = getTodayISO();
   const [viewMode, setViewMode] = useState<CalendarMode>('month');
@@ -228,6 +252,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
   return (
     <div className="space-y-4">
+      {ghost}
       {/* Minimal Google Calendar Controls */}
       <div className="space-y-3">
         <div className="flex items-center justify-between gap-2">
@@ -429,8 +454,9 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   <button
                     key={cell.iso}
                     type="button"
+                    data-drop-date={cell.iso}
                     onClick={() => setSelectedDate(cell.iso)}
-                    className={`min-h-[68px] sm:min-h-[92px] p-1 sm:p-1.5 border-b border-r border-[#F0F4F9] dark:border-[#282A2C] text-left flex flex-col justify-between transition-colors ${
+                    className={`min-h-[68px] sm:min-h-[92px] p-1 sm:p-1.5 border-b border-r border-[#F0F4F9] dark:border-[#282A2C] text-left flex flex-col justify-between transition-colors ${dropClass(cell.iso)} ${
                       isSelected
                         ? 'bg-[#E9EEF6] dark:bg-[#282A2C]'
                         : 'hover:bg-[#F8FAFD] dark:hover:bg-[#282A2C]/50'
@@ -455,7 +481,10 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                       {events.slice(0, 2).map((ev) => (
                         <div
                           key={ev.id}
-                          className={`px-1.5 py-0.5 rounded text-[10px] font-medium truncate ${COLOR_BAR_STYLES[ev.color]}`}
+                          {...(!ev.repeat || ev.repeat === 'none'
+                            ? bind({ kind: 'event', id: ev.id, label: ev.title, fromDate: cell.iso })
+                            : {})}
+                          className={`px-1.5 py-0.5 rounded text-[10px] font-medium truncate select-none ${COLOR_BAR_STYLES[ev.color]}`}
                         >
                           {eventDisplayTitle(ev, cell.iso)}
                         </div>
@@ -463,7 +492,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                       {dueTasks.slice(0, 1).map((t) => (
                         <div
                           key={t.id}
-                          className="px-1.5 py-0.5 rounded text-[10px] font-medium truncate bg-[#E6F4EA] text-[#146C2E] dark:bg-[#0A3818] dark:text-[#6DD58C]"
+                          {...bind({ kind: 'task', id: t.id, label: t.title, fromDate: cell.iso })}
+                          className="px-1.5 py-0.5 rounded text-[10px] font-medium truncate select-none bg-[#E6F4EA] text-[#146C2E] dark:bg-[#0A3818] dark:text-[#6DD58C]"
                         >
                           {t.title}
                         </div>
@@ -661,7 +691,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             return (
               <div
                 key={wd.iso}
-                className="rounded-3xl border border-[#E1E3E1] dark:border-[#444746] bg-white dark:bg-[#1E1F20] p-3.5 space-y-3 min-h-[220px]"
+                data-drop-date={wd.iso}
+                className={`rounded-3xl border border-[#E1E3E1] dark:border-[#444746] bg-white dark:bg-[#1E1F20] p-3.5 space-y-3 min-h-[220px] transition-shadow ${dropClass(wd.iso)}`}
               >
                 <div className="flex items-center justify-between">
                   <button
@@ -698,13 +729,19 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                       key={ev.id}
                       type="button"
                       onClick={() => onEditEvent(ev)}
-                      className={`w-full text-left rounded-xl p-2 text-xs space-y-0.5 ${COLOR_BAR_STYLES[ev.color]}`}
+                      {...(!ev.repeat || ev.repeat === 'none'
+                        ? bind({ kind: 'event', id: ev.id, label: ev.title, fromDate: wd.iso })
+                        : {})}
+                      className={`w-full text-left rounded-xl p-2 text-xs space-y-0.5 select-none ${COLOR_BAR_STYLES[ev.color]}`}
                     >
                       <p className="font-semibold truncate">{eventDisplayTitle(ev, wd.iso)}</p>
                       <p className="text-[10px] opacity-85">
                         {ev.allDay
                           ? 'All day'
                           : formatTime12h(ev.startTime)}
+                        {ev.timeZone && ev.tzStart
+                          ? ` · ${formatTime12h(ev.tzStart)} ${zoneShortName(ev.timeZone)}`
+                          : ''}
                       </p>
                     </button>
                   ))}
@@ -713,7 +750,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                       key={t.id}
                       type="button"
                       onClick={() => onEditTask(t)}
-                      className="w-full text-left rounded-xl p-2 text-xs bg-[#E6F4EA] text-[#146C2E] dark:bg-[#0A3818] dark:text-[#6DD58C] truncate font-medium"
+                      {...bind({ kind: 'task', id: t.id, label: t.title, fromDate: wd.iso })}
+                      className="w-full text-left rounded-xl p-2 text-xs bg-[#E6F4EA] text-[#146C2E] dark:bg-[#0A3818] dark:text-[#6DD58C] truncate font-medium select-none"
                     >
                       {t.title}
                     </button>

@@ -291,6 +291,12 @@ export interface CalendarEventRecord {
   isMilestone?: boolean;
   endDate?: string; // YYYY-MM-DD, multi-day (non-repeating) events
   birthYear?: number; // yearly birthdays/anniversaries → "turns N"
+  // Per-event time zone: original wall-clock values; date/startTime/endTime
+  // above hold the equivalent device-local times used everywhere else.
+  timeZone?: string; // IANA, e.g. "America/New_York"
+  tzDate?: string;
+  tzStart?: string;
+  tzEnd?: string;
   createdAt: number;
   updatedAt: number;
 }

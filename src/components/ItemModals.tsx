@@ -36,6 +36,8 @@ import {
 import { DEFAULT_TASK_LIST_ID } from '../context/VaultContext';
 import { Markdown, toggleMarkdownCheck } from './Markdown';
 import { HabitInsights } from './HabitInsights';
+import { Dropdown } from './Dropdown';
+import { COMMON_ZONES, deviceTimeZone, zoneCity, zoneShortName, zonedToLocal } from '../lib/timezone';
 import {
   PurchaseExtras,
   SubscriptionExtras,
@@ -2439,14 +2441,18 @@ export const CalendarEventModal: React.FC<CalendarEventModalProps> = ({
 }) => {
   const [title, setTitle] = useState(initial?.title ?? '');
   const [date, setDate] = useState(
-    initial?.date ?? defaultDate ?? getTodayISO()
+    (initial?.timeZone ? initial.tzDate : undefined) ?? initial?.date ?? defaultDate ?? getTodayISO()
   );
   const [allDay, setAllDay] = useState(initial?.allDay ?? false);
-  const [startTime, setStartTime] = useState(initial?.startTime ?? defaultStartTime ?? '09:00');
+  const [timeZone, setTimeZone] = useState(initial?.timeZone ?? '');
+  const [startTime, setStartTime] = useState(
+    initial?.timeZone ? initial.tzStart ?? initial.startTime ?? '09:00' : initial?.startTime ?? defaultStartTime ?? '09:00'
+  );
   const [endDate, setEndDate] = useState(initial?.endDate ?? '');
   const [birthYear, setBirthYear] = useState(initial?.birthYear ? String(initial.birthYear) : '');
   const [endTime, setEndTime] = useState(
-    initial?.endTime ??
+    (initial?.timeZone ? initial.tzEnd : undefined) ??
+      initial?.endTime ??
       (defaultStartTime
         ? `${String(Math.min(23, Number(defaultStartTime.slice(0, 2)) + 1)).padStart(2, '0')}:${defaultStartTime.slice(3)}`
         : '10:00')
@@ -2475,13 +2481,20 @@ export const CalendarEventModal: React.FC<CalendarEventModalProps> = ({
     }
     setSaving(true);
     try {
+      const zoned = !allDay && timeZone && timeZone !== deviceTimeZone();
+      const localStart = zoned ? zonedToLocal(date, startTime, timeZone) : null;
+      const localEnd = zoned ? zonedToLocal(date, endTime, timeZone) : null;
       await onSave({
         id: initial?.id,
         title: title.trim(),
-        date,
+        date: localStart ? localStart.date : date,
         allDay,
-        startTime: allDay ? undefined : startTime,
-        endTime: allDay ? undefined : endTime,
+        startTime: allDay ? undefined : localStart ? localStart.time : startTime,
+        endTime: allDay ? undefined : localEnd ? localEnd.time : endTime,
+        timeZone: zoned ? timeZone : undefined,
+        tzDate: zoned ? date : undefined,
+        tzStart: zoned ? startTime : undefined,
+        tzEnd: zoned ? endTime : undefined,
         location: location.trim() || undefined,
         notes: notes.trim() || undefined,
         color,
@@ -2579,6 +2592,32 @@ export const CalendarEventModal: React.FC<CalendarEventModalProps> = ({
             {tx('All-day event')}
           </span>
         </label>
+
+        {!allDay && (
+          <div className="space-y-1.5">
+            <Dropdown
+              label={tx('Time zone')}
+              value={timeZone || 'device'}
+              options={[
+                { value: 'device', label: `${tx('This device')} · ${zoneCity(deviceTimeZone())}` },
+                ...COMMON_ZONES.filter((z) => z !== deviceTimeZone()).map((z) => ({
+                  value: z,
+                  label: `${zoneCity(z)} · ${zoneShortName(z)}`,
+                })),
+              ]}
+              onChange={(v) => setTimeZone(v === 'device' ? '' : v)}
+            />
+            {timeZone && timeZone !== deviceTimeZone() && /^\d{2}:\d{2}$/.test(startTime) && (
+              <p className="text-[11px] text-[#5F6368] dark:text-[#9AA0A6]">
+                = {(() => {
+                  const l = zonedToLocal(date, startTime, timeZone);
+                  return `${l.date === date ? '' : `${l.date.slice(5)} `}${l.time}`;
+                })()}{' '}
+                {tx('your time')}
+              </p>
+            )}
+          </div>
+        )}
 
         {!allDay && (
           <div className="grid grid-cols-2 gap-3.5">
