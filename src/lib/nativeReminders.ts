@@ -80,6 +80,20 @@ export function planReminders(params: {
       for (const t of tasks) {
         if (t.completed || t.dueDate !== day) continue;
         if (cfg.highPriorityTasksOnly && t.priority !== 'high') continue;
+        // Nag mode: repeat urgent timed tasks at +10/+20/+30 min after due
+        if (cfg.nagCritical && t.priority === 'high' && t.dueTime) {
+          for (const k of [10, 20, 30]) {
+            out.push({
+              key: `nag-${t.id}-${day}-${k}`,
+              at: at(day, t.dueTime, digestMin, -k),
+              title: `Still open: ${t.title}`,
+              body: `Due ${formatTime12h(t.dueTime)} · tap Done when finished`,
+              kind: 'task',
+              recordId: t.id,
+              urgent: true,
+            });
+          }
+        }
         out.push({
           key: `task-${t.id}-${day}`,
           at: t.dueTime ? at(day, t.dueTime, digestMin, cfg.taskLeadMinutes) : at(day, undefined, digestMin),
@@ -165,6 +179,18 @@ export function planReminders(params: {
   if (preferences.notifySubscriptions !== false) {
     for (const s of subscriptions) {
       if (!s.active) continue;
+      // Free trials: extra "cancel now?" alert 48h before it converts
+      if (s.isTrial) {
+        out.push({
+          key: `trial48-${s.id}-${s.nextBillingDate}`,
+          at: at(getOffsetDateISO(-2, s.nextBillingDate), undefined, digestMin),
+          title: `Trial ends in 2 days: ${s.name}`,
+          body: 'Keep it or cancel now',
+          kind: 'subscription',
+          recordId: s.id,
+          urgent: true,
+        });
+      }
       const lead = s.reminderDays ?? cfg.renewalLeadDays;
       const alertDay = getOffsetDateISO(-lead, s.nextBillingDate);
       const days = getDaysUntil(s.nextBillingDate, alertDay);

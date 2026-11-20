@@ -149,6 +149,19 @@ export interface TaskSubItem {
   done: boolean;
 }
 
+export interface TaskTemplate {
+  id: string;
+  name: string;
+  title: string;
+  priority: TaskPriority;
+  notes?: string;
+  estimateMinutes?: number;
+  subtasks?: string[];
+  listId?: string;
+}
+
+export type SnoozePreset = 'later' | 'tomorrow' | 'weekend' | 'nextweek';
+
 export interface TaskListRecord {
   id: string;
   name: string;
@@ -181,6 +194,8 @@ export interface TaskRecord {
   repeat?: RecurrenceCycle;
   estimateMinutes?: number;
   focusedMinutes?: number;
+  snoozeCount?: number;
+  blockedBy?: string; // id of a task that must be completed first
   order?: number;
   area?: string;
   notes?: string;
@@ -302,6 +317,7 @@ export interface NotificationConfig {
   vibrate?: boolean;
   actionButtons?: boolean; // Done / Snooze / Paid buttons on notifications
   snoozeMinutes?: number;
+  nagCritical?: boolean; // repeat alerts for high-priority timed tasks
 }
 
 /** Android home-screen widget appearance & content. */
@@ -375,6 +391,7 @@ export interface HubPreferences {
   notifyEvents?: boolean;
   notificationConfig?: NotificationConfig;
   homeWidgets?: HomeWidgetConfig[];
+  taskTemplates?: TaskTemplate[];
   phoneWidgets?: PhoneWidgetConfig;
   categoryBudgets?: Partial<Record<PurchaseCategory, number>>;
   scratchpad?: string;

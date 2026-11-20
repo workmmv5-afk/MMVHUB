@@ -23,6 +23,7 @@ import type {
   TaskPriority,
   TaskRecord,
   TaskSubItem,
+  TaskTemplate,
 } from '../types';
 import {
   formatCurrency,
@@ -32,6 +33,7 @@ import {
   getTodayISO,
 } from '../lib/format';
 import { DEFAULT_TASK_LIST_ID } from '../context/VaultContext';
+import { Markdown, toggleMarkdownCheck } from './Markdown';
 
 const PURCHASE_CATEGORIES: PurchaseCategory[] = [
   'Groceries',
@@ -1744,6 +1746,11 @@ interface TaskModalProps {
   defaultListId?: string;
   defaultGoalId?: string;
   goals?: GoalRecord[];
+  allTasks?: TaskRecord[];
+  templates?: TaskTemplate[];
+  onSaveTemplate?: (tpl: Omit<TaskTemplate, 'id'>) => Promise<void>;
+  onDeleteTemplate?: (id: string) => Promise<void>;
+  onBlockTime?: (taskId: string) => Promise<void>;
   taskLists: TaskListRecord[];
   onSave: (
     data: Omit<TaskRecord, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }
@@ -1757,12 +1764,20 @@ export const TaskModal: React.FC<TaskModalProps> = ({
   defaultListId,
   defaultGoalId,
   goals = [],
+  allTasks = [],
+  templates = [],
+  onSaveTemplate,
+  onDeleteTemplate,
+  onBlockTime,
   taskLists,
   onSave,
   onDelete,
   onClose,
 }) => {
   const [title, setTitle] = useState(initial?.title ?? '');
+  const [blockedBy, setBlockedBy] = useState(initial?.blockedBy ?? '');
+  const [notesPreview, setNotesPreview] = useState(Boolean(initial?.notes));
+  const [templateId, setTemplateId] = useState('');
   const [goalId, setGoalId] = useState(
     initial ? (initial.goalId ?? '') : (defaultGoalId ?? '')
   );
@@ -1827,6 +1842,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
         notes: notes.trim() || undefined,
         subtasks: subtasks.length > 0 ? subtasks : undefined,
         goalId: goalId || undefined,
+        blockedBy: blockedBy || undefined,
       });
       onClose();
     } catch (err) {
@@ -1842,6 +1858,59 @@ export const TaskModal: React.FC<TaskModalProps> = ({
       onClose={onClose}
     >
       <form onSubmit={handleSubmit} className="space-y-4">
+        {!initial && templates.length > 0 && (
+          <div className="flex items-center gap-2">
+            <select
+              aria-label="Start from template"
+              value={templateId}
+              onChange={(e) => {
+                const tpl = templates.find((t) => t.id === e.target.value);
+                setTemplateId(e.target.value);
+                if (!tpl) return;
+                setTitle(tpl.title);
+                setPriority(tpl.priority);
+                setNotes(tpl.notes ?? '');
+                setNotesPreview(Boolean(tpl.notes));
+                setEstimateMinutes(tpl.estimateMinutes ? String(tpl.estimateMinutes) : '');
+                if (tpl.listId) setListId(tpl.listId);
+                setSubtasks(
+                  (tpl.subtasks ?? []).map((text, i) => ({
+                    id: `sub_${Date.now().toString(36)}_${i}`,
+                    text,
+                    done: false,
+                  }))
+                );
+              }}
+              className="flex-1 min-h-[40px] rounded-xl border border-[#DADCE0] dark:border-[#444746] bg-white dark:bg-[#1E1F20] px-3 text-sm"
+            >
+              <option value="">Start from a template…</option>
+              {templates.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+            </select>
+            {templateId && onDeleteTemplate && (
+              <button
+                type="button"
+                aria-label="Delete template"
+                onClick={() => {
+                  void onDeleteTemplate(templateId);
+                  setTemplateId('');
+                }}
+                className="min-h-[40px] min-w-[40px] rounded-xl flex items-center justify-center text-[#747775] hover:text-[#B3261E]"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+        )}
+
+        {initial && (initial.snoozeCount ?? 0) >= 3 && (
+          <p className="text-[11px] rounded-xl px-3 py-2 bg-[#FEF7E0] dark:bg-[#413000] text-[#6B4E00] dark:text-[#FCD663]">
+            Snoozed {initial.snoozeCount}× — try splitting it into subtasks.
+          </p>
+        )}
         {error && (
           <p className="text-xs text-[#B3261E] dark:text-[#F2B8B5]">{error}</p>
         )}
@@ -2102,22 +2171,72 @@ export const TaskModal: React.FC<TaskModalProps> = ({
         </div>
 
         <div className="space-y-1.5">
-          <label
-            htmlFor="tsk-notes"
-            className="block text-xs font-medium text-[#444746] dark:text-[#C4C7C5]"
-          >
-            Details (optional)
-          </label>
-          <textarea
-            id="tsk-notes"
-            rows={2}
-            maxLength={500}
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            placeholder="Add details or notes"
-            className="w-full rounded-xl border border-[#747775] dark:border-[#8E918F] bg-transparent p-3 text-sm text-[#1F1F1F] dark:text-[#E3E3E3]"
-          />
+          <div className="flex items-center justify-between">
+            <label
+              htmlFor="tsk-notes"
+              className="block text-xs font-medium text-[#444746] dark:text-[#C4C7C5]"
+            >
+              Details
+            </label>
+            {notes.trim() && (
+              <button
+                type="button"
+                onClick={() => setNotesPreview((v) => !v)}
+                className="text-[11px] font-medium hub-text-accent"
+              >
+                {notesPreview ? 'Edit' : 'Preview'}
+              </button>
+            )}
+          </div>
+          {notesPreview && notes.trim() ? (
+            <div
+              className="rounded-xl border border-[#E1E3E1] dark:border-[#444746] p-3 cursor-text"
+              onDoubleClick={() => setNotesPreview(false)}
+            >
+              <Markdown
+                text={notes}
+                onToggleCheck={(line) => setNotes((n) => toggleMarkdownCheck(n, line))}
+              />
+            </div>
+          ) : (
+            <textarea
+              id="tsk-notes"
+              rows={3}
+              maxLength={2000}
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Notes · supports **bold**, - [ ] checklists, links"
+              className="w-full rounded-xl border border-[#747775] dark:border-[#8E918F] bg-transparent p-3 text-sm text-[#1F1F1F] dark:text-[#E3E3E3]"
+            />
+          )}
         </div>
+
+        {allTasks.some((t) => !t.completed && t.id !== initial?.id) && (
+          <div className="space-y-1.5">
+            <label
+              htmlFor="tsk-blocked"
+              className="block text-xs font-medium text-[#444746] dark:text-[#C4C7C5]"
+            >
+              Waiting on
+            </label>
+            <select
+              id="tsk-blocked"
+              value={blockedBy}
+              onChange={(e) => setBlockedBy(e.target.value)}
+              className="w-full min-h-[44px] rounded-xl border border-[#747775] dark:border-[#8E918F] bg-white dark:bg-[#1E1F20] px-3 text-sm text-[#1F1F1F] dark:text-[#E3E3E3]"
+            >
+              <option value="">Nothing — ready to do</option>
+              {allTasks
+                .filter((t) => !t.completed && t.id !== initial?.id && t.blockedBy !== initial?.id)
+                .slice(0, 80)
+                .map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.title}
+                  </option>
+                ))}
+            </select>
+          </div>
+        )}
 
         <GoalLinkSelect
           id="tsk-goal"
@@ -2149,6 +2268,38 @@ export const TaskModal: React.FC<TaskModalProps> = ({
             {saving ? 'Encrypting...' : initial ? 'Save Task' : 'Save'}
           </button>
         </div>
+        {(onSaveTemplate || (initial && onBlockTime)) && (
+          <div className="flex flex-wrap items-center justify-center gap-x-3 -mt-1">
+            {onSaveTemplate && title.trim() && (
+              <button
+                type="button"
+                onClick={() =>
+                  void onSaveTemplate({
+                    name: title.trim(),
+                    title: title.trim(),
+                    priority,
+                    notes: notes.trim() || undefined,
+                    estimateMinutes: parseInt(estimateMinutes, 10) > 0 ? parseInt(estimateMinutes, 10) : undefined,
+                    subtasks: subtasks.map((s) => s.text),
+                    listId,
+                  })
+                }
+                className="min-h-[36px] text-xs font-medium text-[#5F6368] dark:text-[#9AA0A6] hover:text-[var(--hub-accent)]"
+              >
+                Save as template
+              </button>
+            )}
+            {initial && onBlockTime && !initial.completed && (
+              <button
+                type="button"
+                onClick={() => void onBlockTime(initial.id).then(onClose)}
+                className="min-h-[36px] text-xs font-medium text-[#5F6368] dark:text-[#9AA0A6] hover:text-[var(--hub-accent)]"
+              >
+                Block time on calendar
+              </button>
+            )}
+          </div>
+        )}
       </form>
     </SheetShell>
   );

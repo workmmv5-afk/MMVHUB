@@ -298,7 +298,13 @@ const TaskRow: React.FC<TaskRowProps> = ({
     moveTaskToList,
     reorderTaskInList,
     deleteTask,
+    tasks: allTasks,
   } = useVault();
+
+  // Dependency: show what this task is waiting on (only while it's still open)
+  const blocker = task.blockedBy
+    ? allTasks.find((t) => t.id === task.blockedBy && !t.completed)
+    : undefined;
 
   const [addingSubtask, setAddingSubtask] = useState(false);
   const [subtaskText, setSubtaskText] = useState('');
@@ -380,9 +386,21 @@ const TaskRow: React.FC<TaskRowProps> = ({
             {task.title}
           </p>
 
+          {blocker && !task.completed && (
+            <p className="text-[11px] text-[#B06000] dark:text-[#FDD663] truncate">
+              ⏳ Waiting on: {blocker.title}
+            </p>
+          )}
+
           {task.notes && !task.completed && (
             <p className="text-xs text-[#444746] dark:text-[#C4C7C5] line-clamp-2">
-              {task.notes}
+              {task.notes.replace(/[*`#>]|\[( |x|X)\]/g, '').trim()}
+            </p>
+          )}
+
+          {(task.snoozeCount ?? 0) >= 3 && !task.completed && (
+            <p className="text-[11px] text-[#5F6368] dark:text-[#9AA0A6]">
+              Snoozed {task.snoozeCount}×
             </p>
           )}
 

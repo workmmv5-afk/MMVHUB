@@ -400,6 +400,12 @@ export const NotificationCustomizer: React.FC<NotificationCustomizerProps> = ({
               checked={cfg.actionButtons}
               onChange={(actionButtons) => patch({ actionButtons })}
             />
+            <Toggle
+              label="Nag for urgent tasks"
+              hint="Repeat high-priority alerts 3× every 10 min"
+              checked={cfg.nagCritical}
+              onChange={(nagCritical) => patch({ nagCritical })}
+            />
             <div className="space-y-1">
               <label htmlFor="notif-snooze" className={labelClass}>
                 Snooze length

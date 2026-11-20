@@ -38,6 +38,7 @@ import { LogoWordmark } from './components/Logo';
 import { BiometricOffer } from './components/SecuritySettings';
 import { isBackupDue } from './components/DataSettings';
 import { ReviewSheet } from './components/ReviewSheet';
+import { CarryoverSheet } from './components/CarryoverSheet';
 import { ShortcutsSheet, useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import {
   useNativeIntegration,
@@ -160,6 +161,11 @@ const HubShell: React.FC = () => {
     saveTask,
     toggleTaskCompleted,
     snoozeTaskToTomorrow,
+    snoozeTask,
+    saveTaskTemplate,
+    deleteTaskTemplate,
+    createTaskFromTemplate,
+    blockTaskOnCalendar,
     rescheduleMissedToToday,
     deleteTask,
     saveCalendarEvent,
@@ -185,6 +191,8 @@ const HubShell: React.FC = () => {
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [commandOpen, setCommandOpen] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
+  const [carryoverOpen, setCarryoverOpen] = useState(false);
+  const [snoozeMenuFor, setSnoozeMenuFor] = useState<string | null>(null);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [commandQuery, setCommandQuery] = useState('');
   const topRightMenusRef = useRef<HTMLDivElement>(null);
@@ -775,13 +783,36 @@ const HubShell: React.FC = () => {
                       <div className="flex items-center gap-1 shrink-0">
                         {item.kind === 'task' && (
                           <>
+                            {snoozeMenuFor === item.id && (
+                              <span className="flex items-center gap-0.5">
+                                {(
+                                  [
+                                    ['later', '+3h'],
+                                    ['tomorrow', 'Tmrw'],
+                                    ['nextweek', 'Mon'],
+                                  ] as const
+                                ).map(([preset, label]) => (
+                                  <button
+                                    key={preset}
+                                    type="button"
+                                    onClick={() => {
+                                      setSnoozeMenuFor(null);
+                                      void snoozeTask(item.recordId, preset);
+                                    }}
+                                    className="min-h-[30px] px-2 rounded-full text-[11px] font-medium hub-bg-soft"
+                                  >
+                                    {label}
+                                  </button>
+                                ))}
+                              </span>
+                            )}
                             <button
                               type="button"
                               onClick={() =>
-                                void snoozeTaskToTomorrow(item.recordId)
+                                setSnoozeMenuFor((cur) => (cur === item.id ? null : item.id))
                               }
-                              title="Snooze to tomorrow"
-                              aria-label={`Snooze ${item.title} to tomorrow`}
+                              title="Snooze"
+                              aria-label={`Snooze ${item.title}`}
                               className="min-h-[36px] min-w-[36px] rounded-full flex items-center justify-center text-[#5F6368] dark:text-[#9AA0A6] hover:bg-[#F1F3F4] dark:hover:bg-[#303134]"
                             >
                               <Clock className="w-4 h-4" />
@@ -849,10 +880,13 @@ const HubShell: React.FC = () => {
                     missedReminders.some((r) => r.kind === 'task') && (
                       <button
                         type="button"
-                        onClick={() => void rescheduleMissedToToday()}
+                        onClick={() => {
+                          closeTopMenus();
+                          setCarryoverOpen(true);
+                        }}
                         className="min-h-[36px] px-3 rounded-full text-xs font-medium border border-[#DADCE0] dark:border-[#3C4043] text-[#202124] dark:text-[#E8EAED] hover:bg-[#F1F3F4] dark:hover:bg-[#303134] whitespace-nowrap"
                       >
-                        Move Missed to Today
+                        Plan missed tasks
                       </button>
                     )}
                   <button
@@ -1245,6 +1279,7 @@ const HubShell: React.FC = () => {
 
       <BiometricOffer />
       {reviewOpen && <ReviewSheet onClose={() => setReviewOpen(false)} />}
+      {carryoverOpen && <CarryoverSheet onClose={() => setCarryoverOpen(false)} />}
       {shortcutsOpen && <ShortcutsSheet onClose={() => setShortcutsOpen(false)} />}
 
       {/* Google Material 3 Undo Snackbar */}
@@ -1313,6 +1348,11 @@ const HubShell: React.FC = () => {
           defaultListId={taskModal.defaultListId}
           defaultGoalId={taskModal.defaultGoalId}
           goals={goals}
+          allTasks={tasks}
+          templates={preferences.taskTemplates ?? []}
+          onSaveTemplate={saveTaskTemplate}
+          onDeleteTemplate={deleteTaskTemplate}
+          onBlockTime={blockTaskOnCalendar}
           taskLists={taskLists}
           onSave={saveTask}
           onDelete={deleteTask}
@@ -1444,6 +1484,24 @@ const HubShell: React.FC = () => {
                     meta: 'Week · Month · Year',
                     onSelect: () => setReviewOpen(true),
                   });
+                }
+                if (!q || 'plan overdue'.includes(q) || 'carry over'.includes(q)) {
+                  actions.push({
+                    id: 'act-carry',
+                    label: 'Plan overdue tasks',
+                    meta: 'Carry over',
+                    onSelect: () => setCarryoverOpen(true),
+                  });
+                }
+                for (const tpl of preferences.taskTemplates ?? []) {
+                  if (!q || tpl.name.toLowerCase().includes(q) || 'template'.includes(q)) {
+                    actions.push({
+                      id: `tpl-${tpl.id}`,
+                      label: `From template: ${tpl.name}`,
+                      meta: 'Adds to today',
+                      onSelect: () => void createTaskFromTemplate(tpl.id),
+                    });
+                  }
                 }
                 if (!q || 'keyboard shortcuts'.includes(q)) {
                   actions.push({

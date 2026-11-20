@@ -24,10 +24,12 @@ import type {
   LocalVaultMeta,
   LocalVaultRecord,
   PurchaseRecord,
+  SnoozePreset,
   SubscriptionRecord,
   SyncStatusState,
   TaskListRecord,
   TaskRecord,
+  TaskTemplate,
   ThemeMode,
   VaultRecordKind,
 } from '../types';
@@ -262,6 +264,11 @@ interface VaultContextValue {
   rescheduleMissedToToday: () => Promise<number>;
   deleteTask: (id: string) => Promise<void>;
   snoozeTaskToTomorrow: (id: string) => Promise<void>;
+  snoozeTask: (id: string, preset?: SnoozePreset) => Promise<void>;
+  saveTaskTemplate: (tpl: Omit<TaskTemplate, 'id'> & { id?: string }) => Promise<void>;
+  deleteTaskTemplate: (id: string) => Promise<void>;
+  createTaskFromTemplate: (id: string) => Promise<void>;
+  blockTaskOnCalendar: (taskId: string) => Promise<void>;
   clearCompletedTasks: (listId?: string) => Promise<void>;
   saveCalendarEvent: (
     data: Omit<CalendarEventRecord, 'id' | 'createdAt' | 'updatedAt'> & {
@@ -1708,6 +1715,12 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
         ]),
         goalId:
           'goalId' in data ? data.goalId || undefined : existingItem?.goalId,
+        blockedBy:
+          'blockedBy' in data
+            ? data.blockedBy && data.blockedBy !== data.id
+              ? data.blockedBy
+              : undefined
+            : existingItem?.blockedBy,
         id: data.id || createRecordId('tsk'),
         listId,
         title: data.title.trim(),
@@ -1940,17 +1953,139 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
     [tasks, persistEncryptedRecord, refreshAfterBatch]
   );
 
-  const snoozeTaskToTomorrow = useCallback(
-    async (id: string) => {
+  const snoozeTask = useCallback(
+    async (id: string, preset: SnoozePreset = 'tomorrow') => {
       const target = tasks.find((t) => t.id === id);
       if (!target) return;
-      const tomorrowISO = getOffsetDateISO(1, getTodayISO());
+      const today = getTodayISO();
+      const now = new Date();
+      let dueDate = getOffsetDateISO(1, today);
+      let dueTime = target.dueTime;
+      let label = 'tomorrow';
+      if (preset === 'later') {
+        // +3h today (capped at 21:00)
+        const mins = Math.min(21 * 60, now.getHours() * 60 + now.getMinutes() + 180);
+        dueDate = today;
+        dueTime = `${String(Math.floor(mins / 60)).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}`;
+        label = `later today`;
+      } else if (preset === 'weekend') {
+        const dow = now.getDay();
+        const toSat = dow === 6 ? 7 : (6 - dow + 7) % 7 || 7;
+        dueDate = getOffsetDateISO(toSat, today);
+        label = 'Saturday';
+      } else if (preset === 'nextweek') {
+        const dow = now.getDay();
+        const toMon = ((8 - dow) % 7) || 7;
+        dueDate = getOffsetDateISO(toMon, today);
+        label = 'next Monday';
+      }
+      const snoozeCount = (target.snoozeCount ?? 0) + 1;
       await persistEncryptedRecord(
         'task',
-        { ...target, dueDate: tomorrowISO, updatedAt: Date.now() },
+        { ...target, dueDate, dueTime, snoozeCount, updatedAt: Date.now() },
         false
       );
-      showSnackbar(`Moved "${target.title}" to tomorrow`);
+      showSnackbar(
+        snoozeCount >= 3
+          ? `Snoozed ${snoozeCount}× — maybe break "${target.title}" down?`
+          : `Moved "${target.title}" to ${label}`
+      );
+    },
+    [tasks, persistEncryptedRecord, showSnackbar]
+  );
+
+  const snoozeTaskToTomorrow = useCallback(
+    (id: string) => snoozeTask(id, 'tomorrow'),
+    [snoozeTask]
+  );
+
+  // Templates (stored encrypted inside preferences)
+  const saveTaskTemplate = useCallback(
+    async (tpl: Omit<TaskTemplate, 'id'> & { id?: string }) => {
+      const record: TaskTemplate = {
+        ...tpl,
+        id: tpl.id ?? `tpl_${Date.now().toString(36)}`,
+        name: tpl.name.trim().slice(0, 60) || tpl.title.slice(0, 60),
+        subtasks: tpl.subtasks?.filter(Boolean).slice(0, 30),
+      };
+      await updatePreferencesRef.current?.({
+        taskTemplates: [
+          ...(latestPrefsRef.current.taskTemplates ?? []).filter((t) => t.id !== record.id),
+          record,
+        ].slice(-30),
+      });
+      showSnackbar(`Template "${record.name}" saved`);
+    },
+    [showSnackbar]
+  );
+
+  const deleteTaskTemplate = useCallback(async (id: string) => {
+    await updatePreferencesRef.current?.({
+      taskTemplates: (latestPrefsRef.current.taskTemplates ?? []).filter((t) => t.id !== id),
+    });
+  }, []);
+
+  const createTaskFromTemplate = useCallback(
+    async (id: string) => {
+      const tpl = (latestPrefsRef.current.taskTemplates ?? []).find((t) => t.id === id);
+      if (!tpl) return;
+      const now = Date.now();
+      await persistEncryptedRecord(
+        'task',
+        {
+          id: createRecordId('tsk'),
+          listId: tpl.listId ?? DEFAULT_TASK_LIST_ID,
+          area: taskLists.find((l) => l.id === tpl.listId)?.name ?? 'My Tasks',
+          title: tpl.title,
+          completed: false,
+          priority: tpl.priority,
+          notes: tpl.notes,
+          estimateMinutes: tpl.estimateMinutes,
+          dueDate: getTodayISO(),
+          subtasks: tpl.subtasks?.map((text, i) => ({
+            id: `sub_${now.toString(36)}_${i}`,
+            text,
+            done: false,
+          })),
+          order: -now,
+          createdAt: now,
+          updatedAt: now,
+        } satisfies TaskRecord,
+        false
+      );
+      showSnackbar(`Added "${tpl.title}" from template`);
+    },
+    [taskLists, persistEncryptedRecord, showSnackbar]
+  );
+
+  // Time-block a task on the calendar
+  const blockTaskOnCalendar = useCallback(
+    async (taskId: string) => {
+      const t = tasks.find((x) => x.id === taskId);
+      if (!t) return;
+      const date = t.dueDate ?? getTodayISO();
+      const start = t.dueTime ?? '09:00';
+      const [h, m] = start.split(':').map(Number);
+      const endMin = Math.min(23 * 60 + 59, h * 60 + m + (t.estimateMinutes ?? 30));
+      const now = Date.now();
+      await persistEncryptedRecord(
+        'calendar',
+        {
+          id: createRecordId('cal'),
+          title: `⏱ ${t.title}`,
+          date,
+          allDay: false,
+          startTime: start,
+          endTime: `${String(Math.floor(endMin / 60)).padStart(2, '0')}:${String(endMin % 60).padStart(2, '0')}`,
+          notes: `Time block for task`,
+          color: 'purple',
+          repeat: 'none',
+          createdAt: now,
+          updatedAt: now,
+        } satisfies CalendarEventRecord,
+        false
+      );
+      showSnackbar(`Blocked ${t.estimateMinutes ?? 30}m on ${date} at ${start}`);
     },
     [tasks, persistEncryptedRecord, showSnackbar]
   );
@@ -2903,6 +3038,11 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
       rescheduleMissedToToday,
       deleteTask,
       snoozeTaskToTomorrow,
+      snoozeTask,
+      saveTaskTemplate,
+      deleteTaskTemplate,
+      createTaskFromTemplate,
+      blockTaskOnCalendar,
       clearCompletedTasks,
       saveCalendarEvent,
       deleteCalendarEvent,
@@ -2989,6 +3129,11 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
       rescheduleMissedToToday,
       deleteTask,
       snoozeTaskToTomorrow,
+      snoozeTask,
+      saveTaskTemplate,
+      deleteTaskTemplate,
+      createTaskFromTemplate,
+      blockTaskOnCalendar,
       clearCompletedTasks,
       saveCalendarEvent,
       deleteCalendarEvent,
