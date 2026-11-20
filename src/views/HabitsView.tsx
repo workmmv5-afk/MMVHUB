@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { tx } from '../lib/i18n';
 import {
   Archive,
   ArchiveRestore,
@@ -237,7 +238,7 @@ export const HabitsView: React.FC<HabitsViewProps> = ({
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-baseline gap-2.5 min-w-0">
             <h1 className="text-xl font-semibold tracking-tight text-[#1F1F1F] dark:text-[#E3E3E3]">
-              Habits
+              {tx('Habits')}
             </h1>
             <span className="text-xs text-[#5F6368] dark:text-[#9AA0A6] tabular-nums whitespace-nowrap">
               {selectedDayStats.doneScheduled}/{selectedDayStats.scheduledCount}{' '}
@@ -331,7 +332,7 @@ export const HabitsView: React.FC<HabitsViewProps> = ({
               onClick={onNewHabit}
               className="min-h-[44px] px-5 rounded-full hub-bg-accent text-xs font-medium"
             >
-              Create First Goal
+              {tx('Create First Goal')}
             </button>
           )}
         </div>
@@ -520,7 +521,7 @@ export const HabitsView: React.FC<HabitsViewProps> = ({
                     onClick={() => setScheduleFilter('all')}
                     className="text-xs font-medium text-[#0B57D0] dark:text-[#A8C7FA] hover:underline"
                   >
-                    Show all goals
+                    {tx('Show all goals')}
                   </button>
                 </div>
               ) : (
@@ -905,7 +906,7 @@ export const HabitsView: React.FC<HabitsViewProps> = ({
                       onClick={() => setMatrixEndDate(todayISO)}
                       className="min-h-[34px] px-3 rounded-full bg-[#C2E7FF] dark:bg-[#004A77] text-[#001D35] dark:text-[#C2E7FF] text-xs font-medium"
                     >
-                      Today
+                      {tx('Today')}
                     </button>
                   )}
 
@@ -1026,7 +1027,7 @@ export const HabitsView: React.FC<HabitsViewProps> = ({
                   <thead>
                     <tr className="border-b border-[#E1E3E1] dark:border-[#444746] bg-[#F8FAFD] dark:bg-[#282A2C]/40">
                       <th className="sticky left-0 z-10 bg-[#F8FAFD] dark:bg-[#1E1F20] px-4 py-3 text-xs font-semibold text-[#444746] dark:text-[#C4C7C5] min-w-[175px] border-r border-[#E1E3E1] dark:border-[#444746]">
-                        Goal · Schedule
+                        {tx('Goal · Schedule')}
                       </th>
                       {matrixDates.map((d) => (
                         <th
@@ -1052,10 +1053,10 @@ export const HabitsView: React.FC<HabitsViewProps> = ({
                         </th>
                       ))}
                       <th className="px-3 py-2 text-right text-xs font-semibold text-[#444746] dark:text-[#C4C7C5] whitespace-nowrap">
-                        Streak
+                        {tx('Streak')}
                       </th>
                       <th className="px-3 py-2 text-right text-xs font-semibold text-[#444746] dark:text-[#C4C7C5] whitespace-nowrap">
-                        Rate
+                        {tx('Rate')}
                       </th>
                     </tr>
                   </thead>
@@ -1169,7 +1170,7 @@ export const HabitsView: React.FC<HabitsViewProps> = ({
                   <tfoot>
                     <tr className="border-t border-[#E1E3E1] dark:border-[#444746] bg-[#F8FAFD] dark:bg-[#282A2C]/40">
                       <td className="sticky left-0 z-10 bg-[#F8FAFD] dark:bg-[#1E1F20] px-4 py-2.5 text-xs font-medium text-[#444746] dark:text-[#C4C7C5] border-r border-[#E1E3E1] dark:border-[#444746]">
-                        Daily completion
+                        {tx('Daily completion')}
                       </td>
                       {matrixDates.map((d) => {
                         const sched = filteredActiveHabits.filter((h) =>
@@ -1188,7 +1189,7 @@ export const HabitsView: React.FC<HabitsViewProps> = ({
                         );
                       })}
                       <td colSpan={2} className="px-3 py-2 text-right text-[11px] text-[#747775]">
-                        Click any cell to backfill
+                        {tx('Click any cell to backfill')}
                       </td>
                     </tr>
                   </tfoot>
@@ -1237,7 +1238,7 @@ export const HabitsView: React.FC<HabitsViewProps> = ({
                     className="min-h-[40px] rounded-full border border-[#DADCE0] dark:border-[#444746] bg-white dark:bg-[#1E1F20] px-4 text-xs font-medium text-[#1F1F1F] dark:text-[#E3E3E3]"
                   >
                     <option value="__all__">
-                      All Habits (Select day to mark)
+                      {tx('All Habits (Select day to mark)')}
                     </option>
                     {activeHabits.map((h) => (
                       <option key={h.id} value={h.id}>
@@ -1377,7 +1378,7 @@ export const HabitsView: React.FC<HabitsViewProps> = ({
                         : formatShortDate(selectedDate)}
                     </h2>
                     <p className="text-xs text-[#444746] dark:text-[#C4C7C5]">
-                      Tap any goal to mark or unmark this date
+                      {tx('Tap any goal to mark or unmark this date')}
                     </p>
                   </div>
                   {selectedDate !== todayISO && (
@@ -1386,7 +1387,7 @@ export const HabitsView: React.FC<HabitsViewProps> = ({
                       onClick={() => setSelectedDate(todayISO)}
                       className="text-xs font-medium text-[#0B57D0] dark:text-[#A8C7FA] hover:underline"
                     >
-                      Today
+                      {tx('Today')}
                     </button>
                   )}
                 </div>

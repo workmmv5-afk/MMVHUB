@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { tx } from '../lib/i18n';
 import { Copy, Plus, Star, Trash2, X } from 'lucide-react';
 import type {
   CalendarColor,
@@ -109,13 +110,13 @@ const SheetShell: React.FC<SheetShellProps> = ({
       <div
         role="dialog"
         aria-modal="true"
-        aria-label={title}
+        aria-label={tx(title)}
         className="w-full sm:max-w-lg max-h-[90vh] overflow-y-auto rounded-t-3xl sm:rounded-3xl bg-white dark:bg-[#1E1F20] border border-[#E1E3E1] dark:border-[#444746] p-5 sm:p-6 pb-8 sm:pb-6 space-y-5"
       >
         <div className="sm:hidden w-10 h-1 bg-[#C4C7C5] dark:bg-[#444746] rounded-full mx-auto -mt-1 mb-2" />
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold tracking-tight text-[#1F1F1F] dark:text-[#E3E3E3]">
-            {title}
+            {tx(title)}
           </h2>
           <button
             type="button"
@@ -149,7 +150,7 @@ const GoalLinkSelect: React.FC<{
         htmlFor={id}
         className="block text-xs font-medium text-[#444746] dark:text-[#C4C7C5]"
       >
-        Linked Goal (optional)
+        {tx('Linked Goal (optional)')}
       </label>
       <select
         id={id}
@@ -362,7 +363,7 @@ export const PurchaseModal: React.FC<PurchaseModalProps> = ({
                 : 'text-[#444746] dark:text-[#C4C7C5]'
             }`}
           >
-            Expense
+            {tx('Expense')}
           </button>
           <button
             type="button"
@@ -373,7 +374,7 @@ export const PurchaseModal: React.FC<PurchaseModalProps> = ({
                 : 'text-[#444746] dark:text-[#C4C7C5]'
             }`}
           >
-            Refund
+            {tx('Refund')}
           </button>
           <button
             type="button"
@@ -384,7 +385,7 @@ export const PurchaseModal: React.FC<PurchaseModalProps> = ({
                 : 'text-[#444746] dark:text-[#C4C7C5]'
             }`}
           >
-            Income
+            {tx('Income')}
           </button>
         </div>
 
@@ -392,7 +393,7 @@ export const PurchaseModal: React.FC<PurchaseModalProps> = ({
         {merchantPresets.length > 0 && (
           <div className="space-y-1.5">
             <span className="block text-[11px] font-medium text-[#444746] dark:text-[#C4C7C5]">
-              Frequent merchants
+              {tx('Frequent merchants')}
             </span>
             <div className="flex flex-wrap gap-1.5">
               {merchantPresets.map((m) => (
@@ -444,7 +445,7 @@ export const PurchaseModal: React.FC<PurchaseModalProps> = ({
               htmlFor="pur-date"
               className="block text-xs font-medium text-[#444746] dark:text-[#C4C7C5]"
             >
-              Date
+              {tx('Date')}
             </label>
             <input
               id="pur-date"
@@ -486,7 +487,7 @@ export const PurchaseModal: React.FC<PurchaseModalProps> = ({
               htmlFor="pur-cat"
               className="block text-xs font-medium text-[#444746] dark:text-[#C4C7C5]"
             >
-              Category
+              {tx('Category')}
             </label>
             <select
               id="pur-cat"
@@ -509,7 +510,7 @@ export const PurchaseModal: React.FC<PurchaseModalProps> = ({
               htmlFor="pur-pay"
               className="block text-xs font-medium text-[#444746] dark:text-[#C4C7C5]"
             >
-              Payment Method
+              {tx('Payment Method')}
             </label>
             <select
               id="pur-pay"
@@ -533,7 +534,7 @@ export const PurchaseModal: React.FC<PurchaseModalProps> = ({
             htmlFor="pur-tags"
             className="block text-xs font-medium text-[#444746] dark:text-[#C4C7C5]"
           >
-            Tags (optional, comma-separated)
+            {tx('Tags (optional, comma-separated)')}
           </label>
           <input
             id="pur-tags"
@@ -572,7 +573,7 @@ export const PurchaseModal: React.FC<PurchaseModalProps> = ({
             htmlFor="pur-notes"
             className="block text-xs font-medium text-[#444746] dark:text-[#C4C7C5]"
           >
-            Notes (optional)
+            {tx('Notes (optional)')}
           </label>
           <input
             id="pur-notes"
@@ -600,7 +601,7 @@ export const PurchaseModal: React.FC<PurchaseModalProps> = ({
               htmlFor="pur-return"
               className="block text-xs font-medium text-[#444746] dark:text-[#C4C7C5]"
             >
-              Return / Warranty Deadline (optional reminder)
+              {tx('Return / Warranty Deadline (optional reminder)')}
             </label>
             <input
               id="pur-return"
@@ -639,7 +640,7 @@ export const PurchaseModal: React.FC<PurchaseModalProps> = ({
                   className="w-4 h-4 accent-[#0B57D0] dark:accent-[#A8C7FA]"
                 />
                 <span className="text-sm text-[#1F1F1F] dark:text-[#E3E3E3]">
-                  Reimbursable (expecting payback or work claim)
+                  {tx('Reimbursable (expecting payback or work claim)')}
                 </span>
               </label>
 
@@ -652,7 +653,7 @@ export const PurchaseModal: React.FC<PurchaseModalProps> = ({
                     className="w-4 h-4 accent-[#146C2E] dark:accent-[#6DD58C]"
                   />
                   <span className="text-xs font-medium text-[#146C2E] dark:text-[#6DD58C]">
-                    Already reimbursed
+                    {tx('Already reimbursed')}
                   </span>
                 </label>
               )}
@@ -672,7 +673,7 @@ export const PurchaseModal: React.FC<PurchaseModalProps> = ({
               }}
               className="min-h-[44px] px-4 rounded-full border border-[#F2B8B5] dark:border-[#8C1D18] text-[#B3261E] dark:text-[#F2B8B5] text-sm font-medium hover:bg-[#FCE8E6] dark:hover:bg-[#601410]/40 transition-colors"
             >
-              Delete
+              {tx('Delete')}
             </button>
           )}
           {initial && onDuplicate && (
@@ -845,7 +846,7 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
             htmlFor="sub-name"
             className="block text-xs font-medium text-[#444746] dark:text-[#C4C7C5]"
           >
-            Service Name
+            {tx('Service Name')}
           </label>
           <input
             id="sub-name"
@@ -899,7 +900,7 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
 
         <div className="space-y-1.5">
           <span className="block text-xs font-medium text-[#444746] dark:text-[#C4C7C5]">
-            Billing Cycle
+            {tx('Billing Cycle')}
           </span>
           <div className="grid grid-cols-4 gap-1.5">
             {(
@@ -936,7 +937,7 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
               htmlFor="sub-cat"
               className="block text-xs font-medium text-[#444746] dark:text-[#C4C7C5]"
             >
-              Category
+              {tx('Category')}
             </label>
             <select
               id="sub-cat"
@@ -959,7 +960,7 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
               htmlFor="sub-pay"
               className="block text-xs font-medium text-[#444746] dark:text-[#C4C7C5]"
             >
-              Payment Method
+              {tx('Payment Method')}
             </label>
             <select
               id="sub-pay"
@@ -984,7 +985,7 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
               htmlFor="sub-last4"
               className="block text-xs font-medium text-[#444746] dark:text-[#C4C7C5]"
             >
-              Card Last 4 (optional)
+              {tx('Card Last 4 (optional)')}
             </label>
             <input
               id="sub-last4"
@@ -1003,7 +1004,7 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
               htmlFor="sub-exp"
               className="block text-xs font-medium text-[#444746] dark:text-[#C4C7C5]"
             >
-              Card Expiry (MM/YY)
+              {tx('Card Expiry (MM/YY)')}
             </label>
             <input
               id="sub-exp"
@@ -1019,7 +1020,7 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
 
         <div className="space-y-1.5">
           <span className="block text-xs font-medium text-[#444746] dark:text-[#C4C7C5]">
-            Renewal Alert Window
+            {tx('Renewal Alert Window')}
           </span>
           <div className="grid grid-cols-4 gap-1.5">
             {REMINDER_DAY_OPTIONS.map((days) => (
@@ -1044,7 +1045,7 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
             htmlFor="sub-url"
             className="block text-xs font-medium text-[#444746] dark:text-[#C4C7C5]"
           >
-            Manage / Cancel URL (optional)
+            {tx('Manage / Cancel URL (optional)')}
           </label>
           <input
             id="sub-url"
@@ -1062,7 +1063,7 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
             htmlFor="sub-notes"
             className="block text-xs font-medium text-[#444746] dark:text-[#C4C7C5]"
           >
-            Notes (optional)
+            {tx('Notes (optional)')}
           </label>
           <input
             id="sub-notes"
@@ -1088,7 +1089,7 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
         {initial?.priceHistory && initial.priceHistory.length > 1 && (
           <div className="rounded-2xl border border-[#E1E3E1] dark:border-[#444746] p-3 space-y-1">
             <span className="block text-[11px] font-medium text-[#444746] dark:text-[#C4C7C5]">
-              Price Change History
+              {tx('Price Change History')}
             </span>
             <p className="text-xs font-mono tabular-nums text-[#1F1F1F] dark:text-[#E3E3E3]">
               {initial.priceHistory
@@ -1107,7 +1108,7 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
               className="w-4 h-4 accent-[#B06000] dark:accent-[#FCD663]"
             />
             <span className="text-sm text-[#1F1F1F] dark:text-[#E3E3E3]">
-              Free trial (highlight before conversion)
+              {tx('Free trial (highlight before conversion)')}
             </span>
           </label>
 
@@ -1121,7 +1122,7 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
               className="w-4 h-4 accent-[#B3261E] dark:accent-[#F2B8B5]"
             />
             <span className="text-sm text-[#1F1F1F] dark:text-[#E3E3E3]">
-              Flag as underused / candidate to cancel
+              {tx('Flag as underused / candidate to cancel')}
             </span>
           </label>
 
@@ -1133,7 +1134,7 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
               className="w-4 h-4 accent-[#0B57D0] dark:accent-[#A8C7FA]"
             />
             <span className="text-sm text-[#1F1F1F] dark:text-[#E3E3E3]">
-              Active subscription (auto-renews)
+              {tx('Active subscription (auto-renews)')}
             </span>
           </label>
         </div>
@@ -1150,7 +1151,7 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
               }}
               className="min-h-[44px] px-4 rounded-full border border-[#F2B8B5] dark:border-[#8C1D18] text-[#B3261E] dark:text-[#F2B8B5] text-sm font-medium hover:bg-[#FCE8E6] dark:hover:bg-[#601410]/40 transition-colors"
             >
-              Delete
+              {tx('Delete')}
             </button>
           )}
           <button
@@ -1359,7 +1360,7 @@ export const HabitModal: React.FC<HabitModalProps> = ({
                 : 'text-[#444746] dark:text-[#C4C7C5]'
             }`}
           >
-            Build Positive
+            {tx('Build Positive')}
           </button>
           <button
             type="button"
@@ -1370,7 +1371,7 @@ export const HabitModal: React.FC<HabitModalProps> = ({
                 : 'text-[#444746] dark:text-[#C4C7C5]'
             }`}
           >
-            Quit / Abstain
+            {tx('Quit / Abstain')}
           </button>
         </div>
 
@@ -1379,7 +1380,7 @@ export const HabitModal: React.FC<HabitModalProps> = ({
             htmlFor="hab-name"
             className="block text-xs font-medium text-[#444746] dark:text-[#C4C7C5]"
           >
-            Goal Name
+            {tx('Goal Name')}
           </label>
           <input
             id="hab-name"
@@ -1401,7 +1402,7 @@ export const HabitModal: React.FC<HabitModalProps> = ({
         <div className="space-y-2">
           <div className="flex items-center justify-between gap-2">
             <span className="text-xs font-medium text-[#444746] dark:text-[#C4C7C5]">
-              Recurring Schedule
+              {tx('Recurring Schedule')}
             </span>
             <label className="inline-flex items-center gap-2 text-xs text-[#444746] dark:text-[#C4C7C5] cursor-pointer">
               <input
@@ -1472,14 +1473,14 @@ export const HabitModal: React.FC<HabitModalProps> = ({
                     onClick={() => setCustomMode('weekdays')}
                     className="min-h-[32px] px-3 rounded-full text-xs font-medium bg-[#C2E7FF] dark:bg-[#004A77] text-[#001D35] dark:text-[#C2E7FF]"
                   >
-                    Specific weekdays
+                    {tx('Specific weekdays')}
                   </button>
                   <button
                     type="button"
                     onClick={() => setCustomMode('interval')}
                     className="min-h-[32px] px-3 rounded-full text-xs font-medium text-[#444746] dark:text-[#C4C7C5] hover:bg-[#E9EEF6] dark:hover:bg-[#333537]"
                   >
-                    Every N days
+                    {tx('Every N days')}
                   </button>
                 </div>
               )}
@@ -1505,7 +1506,7 @@ export const HabitModal: React.FC<HabitModalProps> = ({
                 })}
               </div>
               <p className="text-[11px] text-[#444746] dark:text-[#C4C7C5]">
-                Tap days of the week when this habit repeats.
+                {tx('Tap days of the week when this habit repeats.')}
               </p>
             </div>
           )}
@@ -1521,14 +1522,14 @@ export const HabitModal: React.FC<HabitModalProps> = ({
                   onClick={() => setCustomMode('weekdays')}
                   className="min-h-[32px] px-3 rounded-full text-xs font-medium text-[#444746] dark:text-[#C4C7C5] hover:bg-[#E9EEF6] dark:hover:bg-[#333537]"
                 >
-                  Specific weekdays
+                  {tx('Specific weekdays')}
                 </button>
                 <button
                   type="button"
                   onClick={() => setCustomMode('interval')}
                   className="min-h-[32px] px-3 rounded-full text-xs font-medium bg-[#C2E7FF] dark:bg-[#004A77] text-[#001D35] dark:text-[#C2E7FF]"
                 >
-                  Every N days
+                  {tx('Every N days')}
                 </button>
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -1537,7 +1538,7 @@ export const HabitModal: React.FC<HabitModalProps> = ({
                     htmlFor="hab-interval"
                     className="block text-[11px] text-[#444746] dark:text-[#C4C7C5]"
                   >
-                    Repeat every (days)
+                    {tx('Repeat every (days)')}
                   </label>
                   <input
                     id="hab-interval"
@@ -1554,7 +1555,7 @@ export const HabitModal: React.FC<HabitModalProps> = ({
                     htmlFor="hab-start"
                     className="block text-[11px] text-[#444746] dark:text-[#C4C7C5]"
                   >
-                    Anchor Start Date
+                    {tx('Anchor Start Date')}
                   </label>
                   <input
                     id="hab-start"
@@ -1573,7 +1574,7 @@ export const HabitModal: React.FC<HabitModalProps> = ({
             <div className="rounded-2xl bg-[#F8FAFD] dark:bg-[#282A2C] p-3 space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] text-[#444746] dark:text-[#C4C7C5]">
-                  Select day(s) of the month
+                  {tx('Select day(s) of the month')}
                 </span>
                 <button
                   type="button"
@@ -1584,7 +1585,7 @@ export const HabitModal: React.FC<HabitModalProps> = ({
                       : 'bg-white dark:bg-[#1E1F20] border border-[#DADCE0] dark:border-[#444746] text-[#444746] dark:text-[#C4C7C5]'
                   }`}
                 >
-                  Last day
+                  {tx('Last day')}
                 </button>
               </div>
               <div className="grid grid-cols-7 gap-1">
@@ -1617,7 +1618,7 @@ export const HabitModal: React.FC<HabitModalProps> = ({
               htmlFor="hab-tod"
               className="block text-xs font-medium text-[#444746] dark:text-[#C4C7C5]"
             >
-              Time of Day
+              {tx('Time of Day')}
             </label>
             <select
               id="hab-tod"
@@ -1637,7 +1638,7 @@ export const HabitModal: React.FC<HabitModalProps> = ({
               htmlFor="hab-pref-time"
               className="block text-xs font-medium text-[#444746] dark:text-[#C4C7C5]"
             >
-              Target Time (optional)
+              {tx('Target Time (optional)')}
             </label>
             <input
               id="hab-pref-time"
@@ -1656,7 +1657,7 @@ export const HabitModal: React.FC<HabitModalProps> = ({
               htmlFor="hab-cat"
               className="block text-xs font-medium text-[#444746] dark:text-[#C4C7C5]"
             >
-              Focus Area
+              {tx('Focus Area')}
             </label>
             <select
               id="hab-cat"
@@ -1674,7 +1675,7 @@ export const HabitModal: React.FC<HabitModalProps> = ({
 
           <div className="space-y-1.5">
             <span className="block text-xs font-medium text-[#444746] dark:text-[#C4C7C5]">
-              Accent Color
+              {tx('Accent Color')}
             </span>
             <div className="flex items-center gap-2 min-h-[44px]">
               {CALENDAR_COLORS.map((c) => (
@@ -1703,7 +1704,7 @@ export const HabitModal: React.FC<HabitModalProps> = ({
               htmlFor="hab-target"
               className="block text-xs font-medium text-[#444746] dark:text-[#C4C7C5]"
             >
-              Daily Target
+              {tx('Daily Target')}
             </label>
             <input
               id="hab-target"
@@ -1721,7 +1722,7 @@ export const HabitModal: React.FC<HabitModalProps> = ({
               htmlFor="hab-unit"
               className="block text-xs font-medium text-[#444746] dark:text-[#C4C7C5]"
             >
-              Unit (optional)
+              {tx('Unit (optional)')}
             </label>
             <input
               id="hab-unit"
@@ -1740,7 +1741,7 @@ export const HabitModal: React.FC<HabitModalProps> = ({
             htmlFor="hab-notes"
             className="block text-xs font-medium text-[#444746] dark:text-[#C4C7C5]"
           >
-            Cue or Note (optional)
+            {tx('Cue or Note (optional)')}
           </label>
           <input
             id="hab-notes"
@@ -1781,7 +1782,7 @@ export const HabitModal: React.FC<HabitModalProps> = ({
               }}
               className="min-h-[44px] px-4 rounded-full border border-[#F2B8B5] dark:border-[#8C1D18] text-[#B3261E] dark:text-[#F2B8B5] text-sm font-medium hover:bg-[#FCE8E6] dark:hover:bg-[#601410]/40 transition-colors"
             >
-              Delete
+              {tx('Delete')}
             </button>
           )}
           <button
@@ -1987,7 +1988,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
               htmlFor="tsk-title"
               className="block text-xs font-medium text-[#444746] dark:text-[#C4C7C5]"
             >
-              Title
+              {tx('Title')}
             </label>
             <input
               id="tsk-title"
@@ -2020,7 +2021,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
               htmlFor="tsk-list"
               className="block text-xs font-medium text-[#444746] dark:text-[#C4C7C5]"
             >
-              Task List
+              {tx('Task List')}
             </label>
             <select
               id="tsk-list"
@@ -2042,7 +2043,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
               htmlFor="tsk-repeat"
               className="block text-xs font-medium text-[#444746] dark:text-[#C4C7C5]"
             >
-              Repeat
+              {tx('Repeat')}
             </label>
             <select
               id="tsk-repeat"
@@ -2063,7 +2064,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-[#444746] dark:text-[#C4C7C5]">
-              Date & Time
+              {tx('Date & Time')}
             </span>
             <div className="flex items-center gap-1.5">
               <button
@@ -2071,21 +2072,21 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                 onClick={() => setDueDate(getTodayISO())}
                 className="px-2.5 py-1 rounded-full text-[11px] font-medium bg-[#E9EEF6] dark:bg-[#282A2C] text-[#1F1F1F] dark:text-[#E3E3E3] hover:bg-[#C2E7FF] dark:hover:bg-[#004A77]"
               >
-                Today
+                {tx('Today')}
               </button>
               <button
                 type="button"
                 onClick={() => setDueDate(getOffsetDateISO(1))}
                 className="px-2.5 py-1 rounded-full text-[11px] font-medium bg-[#E9EEF6] dark:bg-[#282A2C] text-[#1F1F1F] dark:text-[#E3E3E3] hover:bg-[#C2E7FF] dark:hover:bg-[#004A77]"
               >
-                Tomorrow
+                {tx('Tomorrow')}
               </button>
               <button
                 type="button"
                 onClick={() => setDueDate(getOffsetDateISO(7))}
                 className="px-2.5 py-1 rounded-full text-[11px] font-medium bg-[#E9EEF6] dark:bg-[#282A2C] text-[#1F1F1F] dark:text-[#E3E3E3] hover:bg-[#C2E7FF] dark:hover:bg-[#004A77]"
               >
-                Next week
+                {tx('Next week')}
               </button>
               {dueDate && (
                 <button
@@ -2096,7 +2097,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                   }}
                   className="px-2 py-1 text-[11px] text-[#747775] hover:text-[#B3261E]"
                 >
-                  Clear
+                  {tx('Clear')}
                 </button>
               )}
             </div>
@@ -2124,7 +2125,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 items-end">
           <div className="space-y-1.5">
             <span className="block text-xs font-medium text-[#444746] dark:text-[#C4C7C5]">
-              Priority
+              {tx('Priority')}
             </span>
             <div className="grid grid-cols-3 gap-1.5">
               {(['low', 'medium', 'high'] as TaskPriority[]).map((p) => (
@@ -2242,7 +2243,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
               htmlFor="tsk-notes"
               className="block text-xs font-medium text-[#444746] dark:text-[#C4C7C5]"
             >
-              Details
+              {tx('Details')}
             </label>
             {notes.trim() && (
               <button
@@ -2283,7 +2284,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
               htmlFor="tsk-blocked"
               className="block text-xs font-medium text-[#444746] dark:text-[#C4C7C5]"
             >
-              Waiting on
+              {tx('Waiting on')}
             </label>
             <select
               id="tsk-blocked"
@@ -2323,7 +2324,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
               }}
               className="min-h-[44px] px-4 rounded-full border border-[#F2B8B5] dark:border-[#8C1D18] text-[#B3261E] dark:text-[#F2B8B5] text-sm font-medium hover:bg-[#FCE8E6] dark:hover:bg-[#601410]/40"
             >
-              Delete
+              {tx('Delete')}
             </button>
           )}
           <button
@@ -2352,7 +2353,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                 }
                 className="min-h-[36px] text-xs font-medium text-[#5F6368] dark:text-[#9AA0A6] hover:text-[var(--hub-accent)]"
               >
-                Save as template
+                {tx('Save as template')}
               </button>
             )}
             {initial && onBlockTime && !initial.completed && (
@@ -2361,7 +2362,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                 onClick={() => void onBlockTime(initial.id).then(onClose)}
                 className="min-h-[36px] text-xs font-medium text-[#5F6368] dark:text-[#9AA0A6] hover:text-[var(--hub-accent)]"
               >
-                Block time on calendar
+                {tx('Block time on calendar')}
               </button>
             )}
           </div>
@@ -2472,7 +2473,7 @@ export const CalendarEventModal: React.FC<CalendarEventModalProps> = ({
             htmlFor="cal-title"
             className="block text-xs font-medium text-[#444746] dark:text-[#C4C7C5]"
           >
-            Event Title
+            {tx('Event Title')}
           </label>
           <input
             id="cal-title"
@@ -2492,7 +2493,7 @@ export const CalendarEventModal: React.FC<CalendarEventModalProps> = ({
               htmlFor="cal-date"
               className="block text-xs font-medium text-[#444746] dark:text-[#C4C7C5]"
             >
-              Date
+              {tx('Date')}
             </label>
             <input
               id="cal-date"
@@ -2508,7 +2509,7 @@ export const CalendarEventModal: React.FC<CalendarEventModalProps> = ({
               htmlFor="cal-repeat"
               className="block text-xs font-medium text-[#444746] dark:text-[#C4C7C5]"
             >
-              Repeat
+              {tx('Repeat')}
             </label>
             <select
               id="cal-repeat"
@@ -2533,7 +2534,7 @@ export const CalendarEventModal: React.FC<CalendarEventModalProps> = ({
             className="w-4 h-4 accent-[#0B57D0] dark:accent-[#A8C7FA]"
           />
           <span className="text-sm text-[#1F1F1F] dark:text-[#E3E3E3]">
-            All-day event
+            {tx('All-day event')}
           </span>
         </label>
 
@@ -2544,7 +2545,7 @@ export const CalendarEventModal: React.FC<CalendarEventModalProps> = ({
                 htmlFor="cal-start"
                 className="block text-xs font-medium text-[#444746] dark:text-[#C4C7C5]"
               >
-                Start Time
+                {tx('Start Time')}
               </label>
               <input
                 id="cal-start"
@@ -2560,7 +2561,7 @@ export const CalendarEventModal: React.FC<CalendarEventModalProps> = ({
                 htmlFor="cal-end"
                 className="block text-xs font-medium text-[#444746] dark:text-[#C4C7C5]"
               >
-                End Time
+                {tx('End Time')}
               </label>
               <input
                 id="cal-end"
@@ -2578,7 +2579,7 @@ export const CalendarEventModal: React.FC<CalendarEventModalProps> = ({
             {allDay && repeat === 'none' && (
               <div className="space-y-1.5">
                 <label htmlFor="cal-enddate" className="block text-xs font-medium text-[#444746] dark:text-[#C4C7C5]">
-                  Ends (multi-day)
+                  {tx('Ends (multi-day)')}
                 </label>
                 <input
                   id="cal-enddate"
@@ -2593,7 +2594,7 @@ export const CalendarEventModal: React.FC<CalendarEventModalProps> = ({
             {repeat === 'yearly' && (
               <div className="space-y-1.5">
                 <label htmlFor="cal-birthyear" className="block text-xs font-medium text-[#444746] dark:text-[#C4C7C5]">
-                  Since year (shows age)
+                  {tx('Since year (shows age)')}
                 </label>
                 <input
                   id="cal-birthyear"
@@ -2617,7 +2618,7 @@ export const CalendarEventModal: React.FC<CalendarEventModalProps> = ({
               htmlFor="cal-alert"
               className="block text-xs font-medium text-[#444746] dark:text-[#C4C7C5]"
             >
-              Reminder Alert
+              {tx('Reminder Alert')}
             </label>
             <select
               id="cal-alert"
@@ -2644,14 +2645,14 @@ export const CalendarEventModal: React.FC<CalendarEventModalProps> = ({
               className="w-4 h-4 accent-[#0B57D0] dark:accent-[#A8C7FA]"
             />
             <span className="text-sm text-[#1F1F1F] dark:text-[#E3E3E3]">
-              Milestone countdown (D-day)
+              {tx('Milestone countdown (D-day)')}
             </span>
           </label>
         </div>
 
         <div className="space-y-1.5">
           <span className="block text-xs font-medium text-[#444746] dark:text-[#C4C7C5]">
-            Color
+            {tx('Color')}
           </span>
           <div className="flex items-center gap-2.5">
             {CALENDAR_COLORS.map((c) => (
@@ -2677,7 +2678,7 @@ export const CalendarEventModal: React.FC<CalendarEventModalProps> = ({
             htmlFor="cal-loc"
             className="block text-xs font-medium text-[#444746] dark:text-[#C4C7C5]"
           >
-            Location or Link (optional)
+            {tx('Location or Link (optional)')}
           </label>
           <input
             id="cal-loc"
@@ -2695,7 +2696,7 @@ export const CalendarEventModal: React.FC<CalendarEventModalProps> = ({
             htmlFor="cal-notes"
             className="block text-xs font-medium text-[#444746] dark:text-[#C4C7C5]"
           >
-            Description (optional)
+            {tx('Description (optional)')}
           </label>
           <textarea
             id="cal-notes"
@@ -2720,7 +2721,7 @@ export const CalendarEventModal: React.FC<CalendarEventModalProps> = ({
               }}
               className="min-h-[44px] px-4 rounded-full border border-[#F2B8B5] dark:border-[#8C1D18] text-[#B3261E] dark:text-[#F2B8B5] text-sm font-medium hover:bg-[#FCE8E6] dark:hover:bg-[#601410]/40"
             >
-              Delete
+              {tx('Delete')}
             </button>
           )}
           <button
@@ -2896,7 +2897,7 @@ export const GoalModal: React.FC<GoalModalProps> = ({
 
         <div className="space-y-1.5">
           <label htmlFor="gol-title" className={goalLabelClass}>
-            Goal
+            {tx('Goal')}
           </label>
           <input
             id="gol-title"
@@ -2912,7 +2913,7 @@ export const GoalModal: React.FC<GoalModalProps> = ({
 
         <div className="space-y-1.5">
           <label htmlFor="gol-desc" className={goalLabelClass}>
-            Why it matters (optional)
+            {tx('Why it matters (optional)')}
           </label>
           <textarea
             id="gol-desc"
@@ -2928,7 +2929,7 @@ export const GoalModal: React.FC<GoalModalProps> = ({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
           <div className="space-y-1.5">
             <label htmlFor="gol-cat" className={goalLabelClass}>
-              Category
+              {tx('Category')}
             </label>
             <input
               id="gol-cat"
@@ -2947,7 +2948,7 @@ export const GoalModal: React.FC<GoalModalProps> = ({
           </div>
           <div className="space-y-1.5">
             <label htmlFor="gol-date" className={goalLabelClass}>
-              Target date (optional)
+              {tx('Target date (optional)')}
             </label>
             <input
               id="gol-date"
@@ -3007,7 +3008,7 @@ export const GoalModal: React.FC<GoalModalProps> = ({
           <div className="grid grid-cols-3 gap-3">
             <div className="space-y-1.5">
               <label htmlFor="gol-cur" className={goalLabelClass}>
-                Current
+                {tx('Current')}
               </label>
               <input
                 id="gol-cur"
@@ -3036,7 +3037,7 @@ export const GoalModal: React.FC<GoalModalProps> = ({
             </div>
             <div className="space-y-1.5">
               <label htmlFor="gol-unit" className={goalLabelClass}>
-                Unit
+                {tx('Unit')}
               </label>
               <input
                 id="gol-unit"
@@ -3168,7 +3169,7 @@ export const GoalModal: React.FC<GoalModalProps> = ({
 
         <div className="space-y-1.5">
           <label htmlFor="gol-img" className={goalLabelClass}>
-            Cover image link (optional)
+            {tx('Cover image link (optional)')}
           </label>
           <input
             id="gol-img"
@@ -3216,7 +3217,7 @@ export const GoalModal: React.FC<GoalModalProps> = ({
               }}
               className="min-h-[44px] px-4 rounded-full border border-[#F2B8B5] dark:border-[#8C1D18] text-[#B3261E] dark:text-[#F2B8B5] text-sm font-medium hover:bg-[#FCE8E6] dark:hover:bg-[#601410]/40"
             >
-              Delete
+              {tx('Delete')}
             </button>
           )}
           <button

@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { tx } from '../lib/i18n';
 import {
   ArrowDownLeft,
   Calendar,
@@ -1046,7 +1047,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
                         : 'text-[#444746] dark:text-[#C4C7C5]'
                     }`}
                   >
-                    Categories
+                    {tx('Categories')}
                   </button>
                   <button
                     type="button"
@@ -1057,7 +1058,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
                         : 'text-[#444746] dark:text-[#C4C7C5]'
                     }`}
                   >
-                    Payments
+                    {tx('Payments')}
                   </button>
                   <button
                     type="button"
@@ -1068,7 +1069,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
                         : 'text-[#444746] dark:text-[#C4C7C5]'
                     }`}
                   >
-                    Merchants
+                    {tx('Merchants')}
                   </button>
                 </div>
 
@@ -1097,7 +1098,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
                 </div>
                 <div>
                   <span className="text-[11px] text-[#747775]">
-                    Top Category
+                    {tx('Top Category')}
                   </span>
                   <p className="text-sm font-semibold text-[#1F1F1F] dark:text-[#E3E3E3] truncate">
                     {categoryBreakdown[0]?.category ?? '—'}
@@ -1105,7 +1106,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
                 </div>
                 <div>
                   <span className="text-[11px] text-[#747775]">
-                    Recurring Share
+                    {tx('Recurring Share')}
                   </span>
                   <p className="text-sm font-mono font-semibold tabular-nums text-[#1F1F1F] dark:text-[#E3E3E3]">
                     {purchaseStats.recurringSharePct}%
@@ -1214,7 +1215,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
               ) : breakdownMode === 'payment' ? (
                 paymentBreakdown.length === 0 ? (
                   <p className="text-sm text-[#444746] dark:text-[#C4C7C5] py-4">
-                    Payment method totals will appear once purchases are logged.
+                    {tx('Payment method totals will appear once purchases are logged.')}
                   </p>
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2.5">
@@ -1437,7 +1438,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
                     onClick={clearPurchaseFilters}
                     className="min-h-[44px] px-5 rounded-full border border-[#DADCE0] dark:border-[#444746] text-xs font-medium text-[#0B57D0] dark:text-[#A8C7FA]"
                   >
-                    Clear Filters
+                    {tx('Clear Filters')}
                   </button>
                 ) : (
                   <button
@@ -1445,7 +1446,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
                     onClick={onNewPurchase}
                     className="min-h-[44px] px-5 rounded-full hub-bg-accent text-xs font-medium"
                   >
-                    Log Purchase
+                    {tx('Log Purchase')}
                   </button>
                 )}
               </div>
@@ -1480,7 +1481,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
             <div className="rounded-3xl border border-[#E1E3E1] dark:border-[#444746] bg-white dark:bg-[#1E1F20] p-4 sm:p-5">
               <span className="text-xs text-[#444746] dark:text-[#C4C7C5]">
-                Monthly Normalized
+                {tx('Monthly Normalized')}
               </span>
               <p className={`mt-1.5 text-2xl font-semibold font-mono tabular-nums text-[#1F1F1F] dark:text-[#E3E3E3] ${blurClass}`}>
                 {formatCurrency(
@@ -1497,7 +1498,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
 
             <div className="rounded-3xl border border-[#E1E3E1] dark:border-[#444746] bg-white dark:bg-[#1E1F20] p-4 sm:p-5">
               <span className="text-xs text-[#444746] dark:text-[#C4C7C5]">
-                Annualized Run Rate
+                {tx('Annualized Run Rate')}
               </span>
               <p className="mt-1.5 text-2xl font-semibold font-mono tabular-nums text-[#1F1F1F] dark:text-[#E3E3E3]">
                 {formatCurrency(
@@ -1510,7 +1511,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
 
             <div className="rounded-3xl border border-[#E1E3E1] dark:border-[#444746] bg-white dark:bg-[#1E1F20] p-4 sm:p-5">
               <span className="text-xs text-[#444746] dark:text-[#C4C7C5]">
-                Next 30 Days Due
+                {tx('Next 30 Days Due')}
               </span>
               <p className="mt-1.5 text-2xl font-semibold font-mono tabular-nums text-[#1F1F1F] dark:text-[#E3E3E3]">
                 {formatCurrency(
@@ -1529,7 +1530,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
 
             <div className="rounded-3xl border border-[#E1E3E1] dark:border-[#444746] bg-white dark:bg-[#1E1F20] p-4 sm:p-5">
               <span className="text-xs text-[#444746] dark:text-[#C4C7C5]">
-                Trials & Alerts
+                {tx('Trials & Alerts')}
               </span>
               <p
                 className={`mt-1.5 text-2xl font-semibold font-mono tabular-nums ${
@@ -1552,7 +1553,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
           {subscriptionMetrics.categoryShares.length > 0 && (
             <div className="rounded-3xl border border-[#E1E3E1] dark:border-[#444746] bg-white dark:bg-[#1E1F20] p-5 space-y-3">
               <span className="text-xs font-medium text-[#444746] dark:text-[#C4C7C5]">
-                Recurring Spend by Category (Monthly Equivalent)
+                {tx('Recurring Spend by Category (Monthly Equivalent)')}
               </span>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-2.5">
                 {subscriptionMetrics.categoryShares.map(
@@ -1676,7 +1677,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
                     onClick={onNewSubscription}
                     className="min-h-[44px] px-5 rounded-full hub-bg-accent text-xs font-medium"
                   >
-                    Add First Subscription
+                    {tx('Add First Subscription')}
                   </button>
                 )}
               </div>

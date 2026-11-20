@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { tx } from '../lib/i18n';
 import {
   Calendar as CalendarIcon,
   Check,
@@ -259,7 +260,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               onClick={jumpToToday}
               className="min-h-[30px] px-2.5 rounded-lg text-xs font-medium text-[#5F6368] dark:text-[#9AA0A6] hover:bg-[#F1F3F4] dark:hover:bg-[#282A2C] whitespace-nowrap shrink-0"
             >
-              Today
+              {tx('Today')}
             </button>
           </div>
 
@@ -507,7 +508,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs text-[#444746] dark:text-[#C4C7C5]">
-                  Selected Day
+                  {tx('Selected Day')}
                 </p>
                 <h2 className="text-base font-semibold text-[#1F1F1F] dark:text-[#E3E3E3]">
                   {selectedDateLabel}
@@ -529,7 +530,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               <div className="py-8 text-center space-y-2">
                 <CalendarIcon className="w-6 h-6 mx-auto text-[#747775]" />
                 <p className="text-xs text-[#444746] dark:text-[#C4C7C5]">
-                  Nothing scheduled for this day.
+                  {tx('Nothing scheduled for this day.')}
                 </p>
               </div>
             ) : (
@@ -741,14 +742,14 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             <div className="py-14 px-6 text-center space-y-3">
               <CalendarIcon className="w-7 h-7 mx-auto text-[#747775]" />
               <p className="text-sm text-[#444746] dark:text-[#C4C7C5]">
-                Your upcoming schedule is clear.
+                {tx('Your upcoming schedule is clear.')}
               </p>
               <button
                 type="button"
                 onClick={() => onNewEvent(todayISO)}
                 className="min-h-[44px] px-5 rounded-full hub-bg-accent text-xs font-medium"
               >
-                Create Event
+                {tx('Create Event')}
               </button>
             </div>
           ) : (
@@ -823,7 +824,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                           {t.title}
                         </span>
                         <span className="text-xs text-[#146C2E] dark:text-[#6DD58C] shrink-0">
-                          Task
+                          {tx('Task')}
                         </span>
                       </button>
                     ))}

@@ -56,3 +56,14 @@ test('translations are complete and interpolate', () => {
   assert.equal(t('missing.key'), 'missing.key');
   setLanguage('en');
 });
+
+test('screen labels translate and fall back to English', async () => {
+  const { tx } = await import('../src/lib/i18n');
+  setLanguage('uz');
+  assert.equal(tx('New Task'), 'Yangi vazifa');
+  setLanguage('ru');
+  assert.equal(tx('Payment Method'), 'Способ оплаты');
+  assert.equal(tx('Some untranslated label'), 'Some untranslated label');
+  setLanguage('en');
+  assert.equal(tx('New Task'), 'New Task');
+});

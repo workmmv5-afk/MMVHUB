@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { tx } from '../lib/i18n';
 import {
   ArrowDown,
   ArrowUp,
@@ -185,7 +186,7 @@ const InlineTaskComposer: React.FC<InlineComposerProps> = ({
               : 'border-[#DADCE0] dark:border-[#444746] text-[#444746] dark:text-[#C4C7C5]'
           }`}
         >
-          Today
+          {tx('Today')}
         </button>
         <button
           type="button"
@@ -196,7 +197,7 @@ const InlineTaskComposer: React.FC<InlineComposerProps> = ({
               : 'border-[#DADCE0] dark:border-[#444746] text-[#444746] dark:text-[#C4C7C5]'
           }`}
         >
-          Tomorrow
+          {tx('Tomorrow')}
         </button>
         <button
           type="button"
@@ -207,7 +208,7 @@ const InlineTaskComposer: React.FC<InlineComposerProps> = ({
               : 'border-[#DADCE0] dark:border-[#444746] text-[#444746] dark:text-[#C4C7C5]'
           }`}
         >
-          Next week
+          {tx('Next week')}
         </button>
         <input
           type="date"
@@ -248,7 +249,7 @@ const InlineTaskComposer: React.FC<InlineComposerProps> = ({
           }}
           className="min-h-[36px] px-3.5 rounded-full text-xs font-medium text-[#444746] dark:text-[#C4C7C5] hover:bg-[#E9EEF6] dark:hover:bg-[#333537]"
         >
-          Cancel
+          {tx('Cancel')}
         </button>
         <button
           type="submit"
@@ -552,7 +553,7 @@ const TaskRow: React.FC<TaskRowProps> = ({
               {allLists.length > 1 && (
                 <div className="pt-1 mt-1 border-t border-[#E1E3E1] dark:border-[#444746]">
                   <p className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-[#747775]">
-                    Move to list
+                    {tx('Move to list')}
                   </p>
                   {allLists
                     .filter((l) => l.id !== currentListId)
@@ -648,7 +649,7 @@ const TaskRow: React.FC<TaskRowProps> = ({
             type="submit"
             className="min-h-[34px] px-3 rounded-full hub-bg-accent text-xs font-medium"
           >
-            Add
+            {tx('Add')}
           </button>
           <button
             type="button"
@@ -658,7 +659,7 @@ const TaskRow: React.FC<TaskRowProps> = ({
             }}
             className="min-h-[34px] px-2 text-xs text-[#747775]"
           >
-            Cancel
+            {tx('Cancel')}
           </button>
         </form>
       )}
@@ -811,7 +812,7 @@ const TaskListCard: React.FC<TaskListCardProps> = ({
               )}
               {!isCustomList && completedTasks.length === 0 && (
                 <p className="px-3 py-2 text-[#747775]">
-                  No list actions available
+                  {tx('No list actions available')}
                 </p>
               )}
             </div>
@@ -882,7 +883,7 @@ const TaskListCard: React.FC<TaskListCardProps> = ({
                 onClick={() => void clearCompletedTasks(listId)}
                 className="text-xs font-medium text-[#B3261E] dark:text-[#F2B8B5] hover:underline"
               >
-                Delete all
+                {tx('Delete all')}
               </button>
             )}
           </div>
@@ -1102,7 +1103,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-baseline gap-2.5 min-w-0">
             <h1 className="text-xl font-semibold tracking-tight text-[#1F1F1F] dark:text-[#E3E3E3]">
-              Tasks
+              {tx('Tasks')}
             </h1>
             <span className="text-xs text-[#5F6368] dark:text-[#9AA0A6] tabular-nums whitespace-nowrap">
               {totalOpenCount} open · {starredCount} starred
@@ -1336,7 +1337,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
               onClick={() => void handleBatch('complete')}
               className="min-h-[34px] px-3 rounded-full hub-bg-soft text-xs font-medium disabled:opacity-40"
             >
-              Complete
+              {tx('Complete')}
             </button>
             <button
               type="button"
@@ -1344,7 +1345,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
               onClick={() => void handleBatch('tomorrow')}
               className="min-h-[34px] px-3 rounded-full border border-[#DADCE0] dark:border-[#444746] text-xs font-medium disabled:opacity-40"
             >
-              Tomorrow
+              {tx('Tomorrow')}
             </button>
             <button
               type="button"
@@ -1352,7 +1353,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
               onClick={() => void handleBatch('delete')}
               className="min-h-[34px] px-3 rounded-full border border-[#DADCE0] dark:border-[#444746] text-xs font-medium text-[#B3261E] dark:text-[#F2B8B5] disabled:opacity-40"
             >
-              Delete
+              {tx('Delete')}
             </button>
           </div>
         </div>
@@ -1377,7 +1378,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
             type="submit"
             className="min-h-[40px] px-4 rounded-full hub-bg-accent text-xs font-medium"
           >
-            Create List
+            {tx('Create List')}
           </button>
           <button
             type="button"
@@ -1387,7 +1388,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
             }}
             className="min-h-[40px] px-3 rounded-full text-xs text-[#444746] dark:text-[#C4C7C5]"
           >
-            Cancel
+            {tx('Cancel')}
           </button>
         </form>
       )}
@@ -1412,14 +1413,14 @@ export const TasksView: React.FC<TasksViewProps> = ({
             type="submit"
             className="min-h-[40px] px-4 rounded-full hub-bg-accent text-xs font-medium"
           >
-            Save Name
+            {tx('Save Name')}
           </button>
           <button
             type="button"
             onClick={() => setRenamingList(null)}
             className="min-h-[40px] px-3 rounded-full text-xs text-[#444746] dark:text-[#C4C7C5]"
           >
-            Cancel
+            {tx('Cancel')}
           </button>
         </form>
       )}
@@ -1466,7 +1467,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
               </div>
               {quad.items.length === 0 ? (
                 <p className="py-8 px-4 text-center text-xs text-[#747775]">
-                  Clear
+                  {tx('Clear')}
                 </p>
               ) : (
                 <div className="divide-y divide-[#F0F4F9] dark:divide-[#282A2C]">

@@ -1,3 +1,4 @@
+import { TEXT } from './i18n-text';
 /**
  * Lightweight i18n: English (source), O‘zbekcha (Latin) and Русский.
  * `t('key')` falls back to English, then to the key itself.
@@ -567,4 +568,15 @@ export function t(key: string, vars?: Record<string, string | number>): string {
 /** Dictionary coverage check used by tests. */
 export function missingKeys(lang: Lang): string[] {
   return Object.keys(en).filter((k) => !(k in DICTS[lang]));
+}
+
+// ---------------------------------------------------------------------------
+// Text-keyed labels for the larger screens (see i18n-text.ts)
+// ---------------------------------------------------------------------------
+
+/** Translate an English UI label; unknown labels stay in English. */
+export function tx(english: string): string {
+  if (current === 'en') return english;
+  const pair = TEXT[english];
+  return pair ? pair[current === 'uz' ? 0 : 1] : english;
 }
