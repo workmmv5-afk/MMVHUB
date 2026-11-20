@@ -34,6 +34,8 @@ import {
 } from './context/VaultContext';
 import { VaultGate } from './components/VaultGate';
 import { PWAInstallButton } from './components/PWAInstallButton';
+import { LogoWordmark } from './components/Logo';
+import { BiometricOffer } from './components/SecuritySettings';
 import {
   CalendarEventModal,
   GoalModal,
@@ -91,13 +93,7 @@ const QUICK_ACCENT_SWATCHES: { id: AccentTheme; label: string; color: string }[]
 ];
 
 const GoogleWordmark: React.FC = () => (
-  <span className="text-lg font-semibold tracking-tight whitespace-nowrap shrink-0 select-none">
-    <span className="text-[#4285F4] dark:text-[#8AB4F8]">M</span>
-    <span className="text-[#EA4335] dark:text-[#F28B82]">M</span>
-    <span className="text-[#FBBC05] dark:text-[#FDD663]">V</span>
-    <span className="text-[#5F6368] dark:text-[#9AA0A6]">-</span>
-    <span className="text-[#202124] dark:text-[#E8EAED]">HUB</span>
-  </span>
+  <LogoWordmark size={28} className="text-lg shrink-0" />
 );
 
 const NineDotsIcon: React.FC<{ className?: string }> = ({ className }) => (
@@ -122,7 +118,7 @@ const NineDotsIcon: React.FC<{ className?: string }> = ({ className }) => (
 const HubShell: React.FC = () => {
   const {
     phase,
-    vaultMeta,
+    canLock,
     user,
     isOnline,
     syncStatus,
@@ -932,7 +928,7 @@ const HubShell: React.FC = () => {
 
                 <PWAInstallButton />
 
-                {vaultMeta?.mode === 'passphrase' && (
+                {canLock && (
                   <button
                     type="button"
                     onClick={() => {
@@ -1095,6 +1091,8 @@ const HubShell: React.FC = () => {
           )}
         </div>
       </main>
+
+      <BiometricOffer />
 
       {/* Google Material 3 Undo Snackbar */}
       {snackbar && (

@@ -59,6 +59,30 @@ import {
   subscribeToCloudVault,
 } from '../lib/syncEngine';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
+import { applyTypography, resolveTypography } from '../lib/typography';
+import {
+  PIN_FREE_ATTEMPTS,
+  PIN_MAX,
+  PIN_MIN,
+  createPinWrapper,
+  detectBiometricSupport,
+  enrollBiometric,
+  isValidPin,
+  pinCooldownMs,
+  removeNativeBiometricSecret,
+  rewrapBio,
+  rewrapPin,
+  unlockWithBiometricMeta,
+  unwrapWithPin,
+  type BiometricSupport,
+} from '../lib/quickUnlock';
+
+export interface PinUnlockResult {
+  ok: boolean;
+  attemptsLeft?: number;
+  lockedUntil?: number;
+  error?: string;
+}
 import {
   advanceDateByCycle,
   createRecordId,
@@ -140,6 +164,15 @@ interface VaultContextValue {
   setupPassphraseVault: (passphrase: string) => Promise<void>;
   setupDeviceKeyVault: () => Promise<void>;
   unlockWithPassphrase: (passphrase: string) => Promise<boolean>;
+  setupPinVault: (pin: string) => Promise<void>;
+  unlockWithPin: (pin: string) => Promise<PinUnlockResult>;
+  unlockWithBiometric: () => Promise<void>;
+  setVaultPin: (pin: string) => Promise<void>;
+  removeVaultLock: () => Promise<void>;
+  enableBiometricUnlock: () => Promise<void>;
+  disableBiometricUnlock: () => Promise<void>;
+  biometricSupport: BiometricSupport;
+  canLock: boolean;
   lockVault: () => void;
   signInWithGoogle: () => Promise<void>;
   signOutGoogle: () => Promise<void>;
@@ -302,6 +335,15 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
   });
 
   const activeKeyRef = useRef<CryptoKey | null>(null);
+  // PIN / fingerprint wrapping keys from this session (lets a passphrase
+  // change re-wrap quick unlock without asking for the PIN again).
+  const quickKeysRef = useRef<{ pinKey?: CryptoKey; bioKey?: CryptoKey }>({});
+  const [biometricSupport, setBiometricSupport] =
+    useState<BiometricSupport>('none');
+
+  useEffect(() => {
+    void detectBiometricSupport().then(setBiometricSupport);
+  }, []);
   const lastActivityRef = useRef<number>(Date.now());
 
   const showSnackbar = useCallback(
@@ -354,6 +396,13 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
   useEffect(() => {
     document.documentElement.dataset.accent = accentTheme;
   }, [accentTheme]);
+
+  useEffect(() => {
+    // Only apply once the vault is open, so the lock screen keeps the
+    // last-used fonts (mirrored to localStorage) instead of resetting.
+    if (phase !== 'unlocked') return;
+    applyTypography(resolveTypography(preferences));
+  }, [phase, preferences.fontSans, preferences.fontMono, preferences.fontScale]);
 
   useEffect(() => {
     document.documentElement.dataset.oled = preferences.oledDark
@@ -638,8 +687,13 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
     };
   }, [authReady, phase, user, isOnline, runPushSync, reloadAndDecryptRecords]);
 
+  /** Vault can be locked when something other than "open automatically" protects it. */
+  const canLock =
+    vaultMeta?.mode === 'passphrase' || Boolean(vaultMeta?.quickUnlock?.pin);
+
   const lockVault = useCallback(() => {
     activeKeyRef.current = null;
+    quickKeysRef.current = {};
     setPurchases([]);
     setSubscriptions([]);
     setHabits([]);
@@ -652,11 +706,7 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
   }, []);
 
   useEffect(() => {
-    if (
-      phase !== 'unlocked' ||
-      vaultMeta?.mode !== 'passphrase' ||
-      preferences.autoLockMinutes <= 0
-    ) {
+    if (phase !== 'unlocked' || !canLock || preferences.autoLockMinutes <= 0) {
       return;
     }
 
@@ -678,7 +728,7 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
       window.removeEventListener('keydown', touch);
       window.clearInterval(interval);
     };
-  }, [phase, vaultMeta?.mode, preferences.autoLockMinutes, lockVault]);
+  }, [phase, canLock, preferences.autoLockMinutes, lockVault]);
 
   const setupPassphraseVault = useCallback(
     async (passphrase: string) => {
@@ -741,6 +791,166 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
     },
     [reloadAndDecryptRecords]
   );
+
+  // ---------------- Quick unlock (PIN / fingerprint) ----------------
+  const saveMeta = useCallback(async (meta: LocalVaultMeta) => {
+    await saveLocalVaultMeta(meta);
+    setVaultMeta(meta);
+  }, []);
+
+  const finishUnlock = useCallback(
+    async (key: CryptoKey) => {
+      activeKeyRef.current = key;
+      lastActivityRef.current = Date.now();
+      await reloadAndDecryptRecords(key);
+      setPhase('unlocked');
+    },
+    [reloadAndDecryptRecords]
+  );
+
+  const setupPinVault = useCallback(
+    async (pin: string) => {
+      if (!isValidPin(pin)) throw new Error(`PIN must be ${PIN_MIN}–${PIN_MAX} digits.`);
+      const { key } = await generateDeviceKey();
+      const { verifierIv, verifierCiphertext } = await createKeyVerifier(key);
+      const { meta: pinMeta, pinKey } = await createPinWrapper(pin, key);
+      quickKeysRef.current = { pinKey };
+      await saveMeta({
+        id: 'local',
+        mode: 'device',
+        salt: generateSaltBase64(),
+        verifierIv,
+        verifierCiphertext,
+        ownerUid: user?.uid,
+        quickUnlock: { pin: pinMeta },
+      });
+      await finishUnlock(key);
+    },
+    [user?.uid, saveMeta, finishUnlock]
+  );
+
+  const unlockWithPin = useCallback(
+    async (pin: string): Promise<PinUnlockResult> => {
+      const meta = await getLocalVaultMeta();
+      const q = meta?.quickUnlock;
+      if (!meta || !q?.pin) return { ok: false, error: 'PIN is not set up.' };
+      const now = Date.now();
+      if (q.lockedUntil && q.lockedUntil > now) {
+        return { ok: false, lockedUntil: q.lockedUntil };
+      }
+      const res = await unwrapWithPin(pin, q.pin);
+      const verified =
+        res &&
+        (await verifyVaultKey(res.master, meta.verifierIv, meta.verifierCiphertext));
+      if (!res || !verified) {
+        const failedAttempts = (q.failedAttempts ?? 0) + 1;
+        const cooldown = pinCooldownMs(failedAttempts);
+        const next: LocalVaultMeta = {
+          ...meta,
+          quickUnlock: {
+            ...q,
+            failedAttempts,
+            lockedUntil: cooldown > 0 ? now + cooldown : undefined,
+          },
+        };
+        await saveMeta(next);
+        return {
+          ok: false,
+          attemptsLeft: Math.max(0, PIN_FREE_ATTEMPTS - failedAttempts),
+          lockedUntil: next.quickUnlock?.lockedUntil,
+        };
+      }
+      if (q.failedAttempts || q.lockedUntil) {
+        await saveMeta({
+          ...meta,
+          quickUnlock: { ...q, failedAttempts: 0, lockedUntil: undefined },
+        });
+      }
+      quickKeysRef.current = { ...quickKeysRef.current, pinKey: res.pinKey };
+      await finishUnlock(res.master);
+      return { ok: true };
+    },
+    [saveMeta, finishUnlock]
+  );
+
+  const unlockWithBiometric = useCallback(async (): Promise<void> => {
+    const meta = await getLocalVaultMeta();
+    const bio = meta?.quickUnlock?.bio;
+    if (!meta || !bio) throw new Error('Fingerprint is not set up.');
+    const { master, key } = await unlockWithBiometricMeta(bio);
+    if (!(await verifyVaultKey(master, meta.verifierIv, meta.verifierCiphertext))) {
+      throw new Error('Fingerprint key no longer matches. Use your PIN.');
+    }
+    quickKeysRef.current = { ...quickKeysRef.current, bioKey: key };
+    if (meta.quickUnlock?.failedAttempts) {
+      await saveMeta({
+        ...meta,
+        quickUnlock: { ...meta.quickUnlock, failedAttempts: 0, lockedUntil: undefined },
+      });
+    }
+    await finishUnlock(master);
+  }, [saveMeta, finishUnlock]);
+
+  const setVaultPin = useCallback(
+    async (pin: string) => {
+      const key = activeKeyRef.current;
+      const meta = await getLocalVaultMeta();
+      if (!key || !meta) throw new Error('Unlock the vault first.');
+      if (!isValidPin(pin)) throw new Error(`PIN must be ${PIN_MIN}–${PIN_MAX} digits.`);
+      const { meta: pinMeta, pinKey } = await createPinWrapper(pin, key);
+      quickKeysRef.current = { ...quickKeysRef.current, pinKey };
+      // A device-key vault stops storing its key in the clear once PIN-protected
+      const { deviceKeyJwk: _drop, ...rest } = meta;
+      void _drop;
+      await saveMeta({
+        ...rest,
+        quickUnlock: { ...meta.quickUnlock, pin: pinMeta, failedAttempts: 0, lockedUntil: undefined },
+      });
+      showSnackbar(meta.quickUnlock?.pin ? 'PIN changed' : 'PIN lock enabled');
+    },
+    [saveMeta, showSnackbar]
+  );
+
+  const removeVaultLock = useCallback(async () => {
+    const key = activeKeyRef.current;
+    const meta = await getLocalVaultMeta();
+    if (!key || !meta) throw new Error('Unlock the vault first.');
+    await removeNativeBiometricSecret();
+    quickKeysRef.current = {};
+    if (meta.mode === 'device') {
+      // No passphrase to fall back on → keep the key on-device (auto-unlock)
+      const deviceKeyJwk = await crypto.subtle.exportKey('jwk', key);
+      await saveMeta({ ...meta, deviceKeyJwk, quickUnlock: undefined });
+      showSnackbar('Lock removed — vault opens automatically on this device');
+    } else {
+      await saveMeta({ ...meta, quickUnlock: undefined });
+      showSnackbar('PIN & fingerprint removed — use your passphrase');
+    }
+  }, [saveMeta, showSnackbar]);
+
+  const enableBiometricUnlock = useCallback(async () => {
+    const key = activeKeyRef.current;
+    const meta = await getLocalVaultMeta();
+    if (!key || !meta) throw new Error('Unlock the vault first.');
+    if (!meta.quickUnlock?.pin && meta.mode !== 'passphrase') {
+      throw new Error('Set a PIN first — it’s your backup if fingerprint fails.');
+    }
+    const { meta: bio, key: bioKey } = await enrollBiometric(key);
+    quickKeysRef.current = { ...quickKeysRef.current, bioKey };
+    await saveMeta({ ...meta, quickUnlock: { ...meta.quickUnlock, bio } });
+    showSnackbar('Fingerprint unlock enabled');
+  }, [saveMeta, showSnackbar]);
+
+  const disableBiometricUnlock = useCallback(async () => {
+    const meta = await getLocalVaultMeta();
+    if (!meta?.quickUnlock?.bio) return;
+    if (meta.quickUnlock.bio.kind === 'native') await removeNativeBiometricSecret();
+    const { bio: _bio, ...restQ } = meta.quickUnlock;
+    void _bio;
+    quickKeysRef.current = { ...quickKeysRef.current, bioKey: undefined };
+    await saveMeta({ ...meta, quickUnlock: restQ });
+    showSnackbar('Fingerprint unlock turned off');
+  }, [saveMeta, showSnackbar]);
 
   const signInWithGoogle = useCallback(async () => {
     const cred = await signInWithPopup(auth, googleProvider);
@@ -2203,6 +2413,31 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
       }
 
       await putLocalRecordsBatch(reencrypted);
+
+      // Re-wrap PIN / fingerprint for the new master key when this session
+      // holds their wrapping keys; otherwise they must be set up again.
+      const prevQ = (await getLocalVaultMeta())?.quickUnlock;
+      let nextQ: LocalVaultMeta['quickUnlock'];
+      let droppedQuick = false;
+      if (prevQ?.pin) {
+        if (quickKeysRef.current.pinKey) {
+          nextQ = { pin: await rewrapPin(prevQ.pin, quickKeysRef.current.pinKey, newKey) };
+        } else {
+          droppedQuick = true;
+        }
+      }
+      if (prevQ?.bio) {
+        if (quickKeysRef.current.bioKey) {
+          nextQ = {
+            ...nextQ,
+            bio: await rewrapBio(prevQ.bio, quickKeysRef.current.bioKey, newKey),
+          };
+        } else {
+          droppedQuick = true;
+          if (prevQ.bio.kind === 'native') await removeNativeBiometricSecret();
+        }
+      }
+
       const nextMeta: LocalVaultMeta = {
         id: 'local',
         mode: 'passphrase',
@@ -2211,10 +2446,14 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
         verifierCiphertext,
         ownerUid: user?.uid,
         lastSyncedAt: vaultMeta?.lastSyncedAt,
+        quickUnlock: nextQ,
       };
       await saveLocalVaultMeta(nextMeta);
       activeKeyRef.current = newKey;
       setVaultMeta(nextMeta);
+      if (droppedQuick) {
+        showSnackbar('Passphrase set. Set up your PIN / fingerprint again in Security.');
+      }
 
       if (user && isOnline) {
         const cloudProfile = await fetchCloudVaultProfile(user.uid);
@@ -2243,6 +2482,7 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
       vaultMeta?.lastSyncedAt,
       runPushSync,
       reloadAndDecryptRecords,
+      showSnackbar,
     ]
   );
 
@@ -2430,6 +2670,15 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
       setupPassphraseVault,
       setupDeviceKeyVault,
       unlockWithPassphrase,
+      setupPinVault,
+      unlockWithPin,
+      unlockWithBiometric,
+      setVaultPin,
+      removeVaultLock,
+      enableBiometricUnlock,
+      disableBiometricUnlock,
+      biometricSupport,
+      canLock,
       lockVault,
       signInWithGoogle,
       signOutGoogle,
@@ -2505,6 +2754,15 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
       setupPassphraseVault,
       setupDeviceKeyVault,
       unlockWithPassphrase,
+      setupPinVault,
+      unlockWithPin,
+      unlockWithBiometric,
+      setVaultPin,
+      removeVaultLock,
+      enableBiometricUnlock,
+      disableBiometricUnlock,
+      biometricSupport,
+      canLock,
       lockVault,
       signInWithGoogle,
       signOutGoogle,

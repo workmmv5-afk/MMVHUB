@@ -26,7 +26,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Google+Sans+Code:wght@400;500;600&family=Poppins:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
     <script>
@@ -41,6 +41,21 @@
           }
           var accent = localStorage.getItem('mmv_hub_accent') || 'blue';
           document.documentElement.dataset.accent = accent;
+          var typo = JSON.parse(localStorage.getItem('mmv_hub_typography') || 'null');
+          if (typo) {
+            var root = document.documentElement;
+            if (typo.sans) root.style.setProperty('--font-sans', typo.sans);
+            if (typo.mono) root.style.setProperty('--font-mono', typo.mono);
+            if (typo.scale && typo.scale !== 1) root.style.fontSize = typo.scale * 100 + '%';
+            [typo.sgf, typo.mgf].forEach(function (gf) {
+              if (!gf || /^(Poppins|Google\+Sans\+Code):/.test(gf)) return;
+              var l = document.createElement('link');
+              l.id = 'gf-' + gf.split(':')[0];
+              l.rel = 'stylesheet';
+              l.href = 'https://fonts.googleapis.com/css2?family=' + gf + '&display=swap';
+              document.head.appendChild(l);
+            });
+          }
         } catch (e) {}
       })();
     </script>

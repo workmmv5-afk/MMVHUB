@@ -20,6 +20,8 @@ import { useVault } from '../context/VaultContext';
 import { PWAInstallButton } from '../components/PWAInstallButton';
 import { NotificationCustomizer } from '../components/NotificationCustomizer';
 import { WidgetCustomizer } from '../components/WidgetCustomizer';
+import { TypographySettings } from '../components/TypographySettings';
+import { SecuritySettings } from '../components/SecuritySettings';
 import { getWidgetMeta, resolveHomeWidgets } from '../lib/homeWidgets';
 import {
   collectDueReminders,
@@ -667,6 +669,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         </form>
       </section>
 
+      <TypographySettings
+        preferences={preferences}
+        updatePreferences={updatePreferences}
+      />
+
       {/* Notification Reminders */}
       <section
         ref={notificationsSectionRef}
@@ -1068,6 +1075,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </div>
         )}
       </section>
+
+      <SecuritySettings />
 
       {/* Encryption & Vault Security */}
       <section className="rounded-3xl border border-[#E1E3E1] dark:border-[#444746] bg-white dark:bg-[#1E1F20] p-5 sm:p-6 space-y-5">

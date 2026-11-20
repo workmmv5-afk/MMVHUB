@@ -273,6 +273,9 @@ export type AccentTheme =
 
 export type UiDensity = 'comfortable' | 'compact';
 
+export type TypographySans = 'poppins' | 'jakarta' | 'inter' | 'roboto' | 'system';
+export type TypographyMono = 'google-sans-code' | 'jetbrains' | 'roboto-mono' | 'system';
+
 export type NotificationDeliveryMode = 'individual' | 'digest';
 
 /** User-tunable notification behaviour (all fields optional; see resolveNotificationConfig). */
@@ -325,6 +328,9 @@ export interface HubPreferences {
   oledDark?: boolean;
   privacyBlur?: boolean;
   density?: UiDensity;
+  fontSans?: TypographySans;
+  fontMono?: TypographyMono;
+  fontScale?: number; // 0.9 .. 1.2
   weekStartsOn?: 'sunday' | 'monday';
   notificationsEnabled?: boolean;
   dailyDigestTime?: string; // HH:mm
@@ -368,6 +374,8 @@ export interface LocalVaultMeta {
   deviceKeyJwk?: JsonWebKey;
   ownerUid?: string;
   lastSyncedAt?: number;
+  /** Local-only PIN / fingerprint wrappers of the master key. */
+  quickUnlock?: import('./lib/quickUnlock').QuickUnlockMeta;
 }
 
 export interface SyncStatusState {

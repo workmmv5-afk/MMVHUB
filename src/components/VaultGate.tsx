@@ -1,84 +1,236 @@
-import React, { useState } from 'react';
-import { Eye, EyeOff, KeyRound, Lock, ShieldCheck } from 'lucide-react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Delete, Eye, EyeOff, Fingerprint } from 'lucide-react';
 import { useVault } from '../context/VaultContext';
-import { PWAInstallButton } from './PWAInstallButton';
+import { LogoMark } from './Logo';
+import { PIN_MAX, PIN_MIN } from '../lib/quickUnlock';
+
+type Step = 'pin' | 'confirm' | 'passphrase';
+
+const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'bio', '0', 'del'] as const;
+
+const PinDots: React.FC<{ value: string; shake: boolean; total?: number }> = ({
+  value,
+  shake,
+  total,
+}) => (
+  <div
+    aria-hidden="true"
+    className={`flex items-center justify-center gap-3 h-6 ${shake ? 'hub-shake' : ''}`}
+  >
+    {Array.from({
+      length:
+        total ??
+        Math.max(PIN_MIN, Math.min(PIN_MAX, value.length + (value.length < PIN_MAX ? 1 : 0))),
+    }).map(
+      (_, i) => (
+        <span
+          key={i}
+          className={`w-3 h-3 rounded-full transition-all ${
+            i < value.length
+              ? 'bg-[var(--hub-accent)] scale-110'
+              : 'border-2 border-[#C4C7C5] dark:border-[#5F6368]'
+          }`}
+        />
+      )
+    )}
+  </div>
+);
 
 export const VaultGate: React.FC = () => {
   const {
     phase,
+    vaultMeta,
     user,
     isOnline,
+    biometricSupport,
+    setupPinVault,
     setupPassphraseVault,
-    setupDeviceKeyVault,
+    unlockWithPin,
+    unlockWithBiometric,
     unlockWithPassphrase,
     signInWithGoogle,
     signOutGoogle,
     wipeLocalVault,
   } = useVault();
 
+  const isSetup = phase === 'needs-setup';
+  const hasPin = Boolean(vaultMeta?.quickUnlock?.pin);
+  const hasBio = Boolean(vaultMeta?.quickUnlock?.bio) && biometricSupport !== 'none';
+  const hasPassphrase = vaultMeta?.mode === 'passphrase';
+
+  const [step, setStep] = useState<Step>(() =>
+    isSetup || hasPin ? 'pin' : 'passphrase'
+  );
+  const [pin, setPin] = useState('');
+  const [firstPin, setFirstPin] = useState('');
   const [passphrase, setPassphrase] = useState('');
   const [confirmPassphrase, setConfirmPassphrase] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
+  const [showPass, setShowPass] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [shake, setShake] = useState(false);
+  const [lockedUntil, setLockedUntil] = useState<number | null>(
+    vaultMeta?.quickUnlock?.lockedUntil ?? null
+  );
+  const [now, setNow] = useState(Date.now());
   const [confirmWipe, setConfirmWipe] = useState(false);
+  const bioTried = useRef(false);
 
-  const isSetup = phase === 'needs-setup';
+  // Keep step sensible when vault meta loads/changes (e.g. Google restore)
+  useEffect(() => {
+    if (!isSetup) setStep(hasPin ? 'pin' : 'passphrase');
+  }, [isSetup, hasPin]);
 
-  const handleSetupSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // Cooldown ticker
+  useEffect(() => {
+    if (!lockedUntil || lockedUntil <= Date.now()) return;
+    const id = window.setInterval(() => {
+      setNow(Date.now());
+      if (Date.now() >= lockedUntil) setLockedUntil(null);
+    }, 500);
+    return () => window.clearInterval(id);
+  }, [lockedUntil]);
+
+  const fail = (msg: string) => {
+    setError(msg);
+    setShake(true);
+    window.setTimeout(() => setShake(false), 400);
+    if ('vibrate' in navigator) navigator.vibrate?.(80);
+  };
+
+  const tryBiometric = useCallback(async () => {
     setError('');
-    if (passphrase.length < 6) {
-      setError('Use at least 6 characters for your vault passphrase.');
-      return;
-    }
-    if (passphrase !== confirmPassphrase) {
-      setError('Passphrases do not match.');
-      return;
-    }
     setBusy(true);
     try {
-      await setupPassphraseVault(passphrase);
+      await unlockWithBiometric();
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : 'Unable to initialize vault.'
-      );
+      setError(err instanceof Error ? err.message : 'Fingerprint failed. Use your PIN.');
     } finally {
       setBusy(false);
     }
-  };
+  }, [unlockWithBiometric]);
 
-  const handleUnlockSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    if (!passphrase) {
-      setError('Enter your vault passphrase.');
-      return;
+  // Auto-prompt fingerprint once on the unlock screen
+  useEffect(() => {
+    if (!isSetup && hasBio && !bioTried.current) {
+      bioTried.current = true;
+      void tryBiometric();
     }
-    setBusy(true);
-    try {
-      const ok = await unlockWithPassphrase(passphrase);
-      if (!ok) {
-        setError('Incorrect passphrase. Decryption verification failed.');
+  }, [isSetup, hasBio, tryBiometric]);
+
+  const submitPin = useCallback(
+    async (value: string) => {
+      if (value.length < PIN_MIN || busy) return;
+      setError('');
+      if (isSetup) {
+        if (step === 'pin') {
+          setFirstPin(value);
+          setPin('');
+          setStep('confirm');
+          return;
+        }
+        if (value !== firstPin) {
+          setPin('');
+          setFirstPin('');
+          setStep('pin');
+          fail('PINs didn’t match. Try again.');
+          return;
+        }
+        setBusy(true);
+        try {
+          await setupPinVault(value);
+        } catch (err) {
+          fail(err instanceof Error ? err.message : 'Could not create vault.');
+        } finally {
+          setBusy(false);
+        }
+        return;
       }
+      setBusy(true);
+      try {
+        const res = await unlockWithPin(value);
+        if (!res.ok) {
+          setPin('');
+          if (res.lockedUntil && res.lockedUntil > Date.now()) {
+            setLockedUntil(res.lockedUntil);
+            fail('Too many attempts.');
+          } else {
+            fail(
+              res.error ??
+                (res.attemptsLeft !== undefined && res.attemptsLeft <= 2
+                  ? `Wrong PIN · ${res.attemptsLeft} ${res.attemptsLeft === 1 ? 'try' : 'tries'} left`
+                  : 'Wrong PIN')
+            );
+          }
+        }
+      } finally {
+        setBusy(false);
+      }
+    },
+    [busy, isSetup, step, firstPin, setupPinVault, unlockWithPin]
+  );
+
+  const press = useCallback(
+    (k: (typeof KEYS)[number]) => {
+      if (busy) return;
+      if (k === 'del') {
+        setPin((p) => p.slice(0, -1));
+        return;
+      }
+      if (k === 'bio') return;
+      setPin((p) => {
+        if (p.length >= PIN_MAX) return p;
+        const next = p + k;
+        // Unlock auto-submits at the stored PIN length; setup at 6 digits
+        const storedLen = vaultMeta?.quickUnlock?.pin?.length;
+        if ((!isSetup && storedLen && next.length === storedLen) || next.length === PIN_MAX) {
+          window.setTimeout(() => void submitPin(next), 60);
+        }
+        return next;
+      });
+    },
+    [busy, isSetup, submitPin, vaultMeta?.quickUnlock?.pin?.length]
+  );
+
+  // Physical keyboard support on the PIN pad
+  useEffect(() => {
+    if (step === 'passphrase') return;
+    const onKey = (e: KeyboardEvent) => {
+      if (/^\d$/.test(e.key)) press(e.key as (typeof KEYS)[number]);
+      else if (e.key === 'Backspace') press('del');
+      else if (e.key === 'Enter') void submitPin(pin);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [step, press, submitPin, pin]);
+
+  const submitPassphrase = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    if (isSetup) {
+      if (passphrase.length < 8) return fail('Use at least 8 characters.');
+      if (passphrase !== confirmPassphrase) return fail('Passphrases don’t match.');
+    } else if (!passphrase) {
+      return fail('Enter your passphrase.');
+    }
+    setBusy(true);
+    try {
+      if (isSetup) await setupPassphraseVault(passphrase);
+      else if (!(await unlockWithPassphrase(passphrase))) fail('Wrong passphrase.');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to unlock vault.');
+      fail(err instanceof Error ? err.message : 'Something went wrong.');
     } finally {
       setBusy(false);
     }
   };
 
-  const handleGoogleSyncSignIn = async () => {
+  const googleRestore = async () => {
     setError('');
     setBusy(true);
     try {
       await signInWithGoogle();
     } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : 'Google sign-in was cancelled or failed.'
-      );
+      setError(err instanceof Error ? err.message : 'Google sign-in failed.');
     } finally {
       setBusy(false);
     }
@@ -86,218 +238,245 @@ export const VaultGate: React.FC = () => {
 
   if (phase === 'loading') {
     return (
-      <div className="min-h-screen bg-[#F8F9FA] dark:bg-[#131314] flex items-center justify-center p-6">
-        <div className="text-sm text-[#444746] dark:text-[#C4C7C5]">
-          Initializing encrypted storage...
-        </div>
+      <div className="min-h-screen flex items-center justify-center bg-[#F8F9FA] dark:bg-[#131314]">
+        <LogoMark size={56} className="animate-pulse" />
       </div>
     );
   }
 
+  const cooling = lockedUntil !== null && lockedUntil > now;
+  const coolSecs = cooling ? Math.ceil((lockedUntil! - now) / 1000) : 0;
+
+  const title = isSetup
+    ? step === 'confirm'
+      ? 'Confirm PIN'
+      : step === 'passphrase'
+        ? 'Create passphrase'
+        : 'Create a PIN'
+    : step === 'passphrase'
+      ? 'Enter passphrase'
+      : 'Enter PIN';
+
+  const linkCls =
+    'text-xs font-medium text-[#5F6368] dark:text-[#9AA0A6] hover:text-[var(--hub-accent)] min-h-[36px] px-2';
+
   return (
-    <div className="min-h-screen bg-[#F8F9FA] dark:bg-[#131314] text-[#202124] dark:text-[#E8EAED] flex flex-col justify-between p-5 sm:p-8">
-      <header className="w-full max-w-md mx-auto flex items-center justify-between pt-2">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-xl bg-white dark:bg-[#1E1F20] border border-[#E1E3E1] dark:border-[#444746] grid grid-cols-2 gap-0.5 p-1.5">
-            <span className="rounded-[2px] bg-[#4285F4]" />
-            <span className="rounded-[2px] bg-[#EA4335]" />
-            <span className="rounded-[2px] bg-[#FBBC05]" />
-            <span className="rounded-[2px] bg-[#34A853]" />
-          </div>
-          <span className="text-lg font-semibold tracking-tight whitespace-nowrap">
-            MMV-HUB
-          </span>
-        </div>
-        <PWAInstallButton compact />
-      </header>
-
-      <main className="w-full max-w-md mx-auto my-8">
-        <div className="rounded-3xl border border-[#E1E3E1] dark:border-[#444746] bg-white dark:bg-[#1E1F20] p-6 sm:p-8 space-y-6">
-          <div className="space-y-2">
-            <div className="flex items-center gap-2 text-xs font-medium hub-text-accent">
-              <ShieldCheck className="w-4 h-4 shrink-0" />
-              <span>End-to-End Encrypted Personal Workspace</span>
-            </div>
-            <h1 className="text-2xl font-semibold tracking-tight text-balance">
-              {isSetup ? 'Create your private vault' : 'Welcome back'}
-            </h1>
-            <p className="text-sm text-[#444746] dark:text-[#C4C7C5] leading-relaxed">
-              {isSetup
-                ? 'Encrypt your purchases, habits, and tasks locally with AES-256-GCM before syncing across devices.'
-                : user
-                  ? `Signed in as ${user.email}. Enter your passphrase to unlock your synced hub.`
-                  : 'Enter your passphrase to unlock your offline personal hub.'}
+    <div className="min-h-[100dvh] bg-[#F8F9FA] dark:bg-[#131314] text-[#202124] dark:text-[#E8EAED] flex flex-col items-center justify-center px-6 py-8 pt-safe pb-safe">
+      <div className="w-full max-w-[320px] flex flex-col items-center gap-6">
+        <div className="flex flex-col items-center gap-3">
+          <LogoMark size={64} />
+          <h1 className="text-xl font-semibold tracking-tight">{title}</h1>
+          {user && !isSetup && (
+            <p className="text-xs text-[#5F6368] dark:text-[#9AA0A6] -mt-2 truncate max-w-full">
+              {user.email}
             </p>
-          </div>
-
-          {error && (
-            <div
-              role="alert"
-              className="rounded-2xl border border-[#F2B8B5] dark:border-[#8C1D18] bg-[#FCE8E6] dark:bg-[#601410]/50 px-4 py-3 text-xs text-[#B3261E] dark:text-[#F2B8B5]"
-            >
-              {error}
-            </div>
           )}
+        </div>
 
-          <form
-            onSubmit={isSetup ? handleSetupSubmit : handleUnlockSubmit}
-            className="space-y-4"
-          >
-            <div className="space-y-1.5">
-              <label
-                htmlFor="vault-passphrase"
-                className="block text-xs font-medium text-[#444746] dark:text-[#C4C7C5]"
-              >
-                Vault Passphrase
-              </label>
-              <div className="relative">
-                <input
-                  id="vault-passphrase"
-                  type={showPassword ? 'text' : 'password'}
-                  value={passphrase}
-                  onChange={(e) => setPassphrase(e.target.value)}
-                  placeholder={
-                    isSetup ? 'At least 6 characters' : 'Enter your passphrase'
-                  }
-                  autoComplete={isSetup ? 'new-password' : 'current-password'}
-                  className="w-full min-h-[48px] rounded-xl border border-[#747775] dark:border-[#8E918F] bg-transparent px-4 pr-12 text-sm text-[#1F1F1F] dark:text-[#E3E3E3] placeholder:text-[#747775] focus:outline-none focus:border-[#0B57D0] dark:focus:border-[#A8C7FA] focus:ring-1 focus:ring-[#0B57D0] dark:focus:ring-[#A8C7FA]"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((v) => !v)}
-                  aria-label={showPassword ? 'Hide passphrase' : 'Show passphrase'}
-                  className="absolute right-1 top-1/2 -translate-y-1/2 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-full text-[#444746] dark:text-[#C4C7C5] hover:bg-[#E9EEF6] dark:hover:bg-[#282A2C]"
-                >
-                  {showPassword ? (
-                    <EyeOff className="w-4 h-4" />
+        {step !== 'passphrase' ? (
+          <>
+            <PinDots
+              value={pin}
+              shake={shake}
+              total={isSetup ? undefined : vaultMeta?.quickUnlock?.pin?.length}
+            />
+            <p
+              role="alert"
+              aria-live="polite"
+              className={`text-xs min-h-[16px] text-center ${
+                error || cooling ? 'text-[#C5221F] dark:text-[#F28B82]' : 'text-[#5F6368] dark:text-[#9AA0A6]'
+              }`}
+            >
+              {cooling
+                ? `Try again in ${coolSecs}s`
+                : error ||
+                  (isSetup
+                    ? step === 'confirm'
+                      ? 'Enter it once more'
+                      : `${PIN_MIN}–${PIN_MAX} digits`
+                    : busy
+                      ? 'Unlocking…'
+                      : '')}
+            </p>
+
+            <div className="grid grid-cols-3 gap-3 w-full">
+              {KEYS.map((k) => {
+                if (k === 'bio') {
+                  return hasBio && !isSetup ? (
+                    <button
+                      key={k}
+                      type="button"
+                      onClick={() => void tryBiometric()}
+                      disabled={busy}
+                      aria-label="Unlock with fingerprint"
+                      className="h-16 rounded-full flex items-center justify-center hub-text-accent hover:bg-[#E8EAED] dark:hover:bg-[#282A2C] disabled:opacity-40"
+                    >
+                      <Fingerprint className="w-7 h-7" />
+                    </button>
+                  ) : isSetup && step === 'pin' && pin.length >= PIN_MIN && pin.length < PIN_MAX ? (
+                    <button
+                      key={k}
+                      type="button"
+                      onClick={() => void submitPin(pin)}
+                      className="h-16 rounded-full text-sm font-semibold hub-text-accent hover:bg-[#E8EAED] dark:hover:bg-[#282A2C]"
+                    >
+                      Next
+                    </button>
                   ) : (
-                    <Eye className="w-4 h-4" />
-                  )}
-                </button>
-              </div>
+                    <span key={k} />
+                  );
+                }
+                if (k === 'del') {
+                  return (
+                    <button
+                      key={k}
+                      type="button"
+                      onClick={() => press('del')}
+                      disabled={!pin || busy}
+                      aria-label="Delete digit"
+                      className="h-16 rounded-full flex items-center justify-center text-[#5F6368] dark:text-[#9AA0A6] hover:bg-[#E8EAED] dark:hover:bg-[#282A2C] disabled:opacity-30"
+                    >
+                      <Delete className="w-6 h-6" />
+                    </button>
+                  );
+                }
+                return (
+                  <button
+                    key={k}
+                    type="button"
+                    onClick={() => press(k)}
+                    disabled={busy || cooling}
+                    className="h-16 rounded-full bg-white dark:bg-[#1E1F20] border border-[#E8EAED] dark:border-[#282A2C] text-2xl font-medium tabular-nums hover:bg-[#F1F3F4] dark:hover:bg-[#282A2C] active:scale-95 transition disabled:opacity-40"
+                  >
+                    {k}
+                  </button>
+                );
+              })}
             </div>
 
+          </>
+        ) : (
+          <form onSubmit={submitPassphrase} className="w-full space-y-3">
+            <div className="relative">
+              <input
+                type={showPass ? 'text' : 'password'}
+                value={passphrase}
+                onChange={(e) => setPassphrase(e.target.value)}
+                placeholder="Passphrase"
+                autoFocus
+                autoComplete={isSetup ? 'new-password' : 'current-password'}
+                className="w-full min-h-[48px] rounded-2xl border border-[#DADCE0] dark:border-[#3C4043] bg-white dark:bg-[#1E1F20] px-4 pr-12 text-sm focus:outline-none focus:border-[var(--hub-accent)]"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPass((v) => !v)}
+                aria-label={showPass ? 'Hide passphrase' : 'Show passphrase'}
+                className="absolute right-1 top-1/2 -translate-y-1/2 min-h-[44px] min-w-[44px] flex items-center justify-center text-[#5F6368]"
+              >
+                {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
             {isSetup && (
-              <div className="space-y-1.5">
-                <label
-                  htmlFor="vault-passphrase-confirm"
-                  className="block text-xs font-medium text-[#444746] dark:text-[#C4C7C5]"
-                >
-                  Confirm Passphrase
-                </label>
-                <input
-                  id="vault-passphrase-confirm"
-                  type={showPassword ? 'text' : 'password'}
-                  value={confirmPassphrase}
-                  onChange={(e) => setConfirmPassphrase(e.target.value)}
-                  placeholder="Re-enter passphrase"
-                  autoComplete="new-password"
-                  className="w-full min-h-[48px] rounded-xl border border-[#747775] dark:border-[#8E918F] bg-transparent px-4 text-sm text-[#1F1F1F] dark:text-[#E3E3E3] placeholder:text-[#747775] focus:outline-none focus:border-[#0B57D0] dark:focus:border-[#A8C7FA] focus:ring-1 focus:ring-[#0B57D0] dark:focus:ring-[#A8C7FA]"
-                />
-              </div>
+              <input
+                type={showPass ? 'text' : 'password'}
+                value={confirmPassphrase}
+                onChange={(e) => setConfirmPassphrase(e.target.value)}
+                placeholder="Confirm passphrase"
+                autoComplete="new-password"
+                className="w-full min-h-[48px] rounded-2xl border border-[#DADCE0] dark:border-[#3C4043] bg-white dark:bg-[#1E1F20] px-4 text-sm focus:outline-none focus:border-[var(--hub-accent)]"
+              />
             )}
-
+            {error && (
+              <p role="alert" className="text-xs text-center text-[#C5221F] dark:text-[#F28B82]">
+                {error}
+              </p>
+            )}
             <button
               type="submit"
               disabled={busy}
-              className="w-full min-h-[48px] rounded-full hub-bg-accent text-sm font-medium flex items-center justify-center gap-2 hover:opacity-95 disabled:opacity-50 transition-opacity"
+              className="w-full min-h-[48px] rounded-full hub-bg-accent text-sm font-medium disabled:opacity-50"
             >
-              <Lock className="w-4 h-4" />
-              <span>
-                {busy
-                  ? 'Deriving key...'
-                  : isSetup
-                    ? 'Create Encrypted Vault'
-                    : 'Unlock Vault'}
-              </span>
+              {busy ? 'Working…' : isSetup ? 'Create vault' : 'Unlock'}
             </button>
+            {isSetup && (
+              <p className="text-[11px] text-center text-[#5F6368] dark:text-[#9AA0A6]">
+                Use this on all your devices to sync.
+              </p>
+            )}
           </form>
+        )}
 
-          {isSetup && (
-            <div className="pt-2 border-t border-[#E1E3E1] dark:border-[#444746] space-y-2.5">
+        {/* Secondary actions */}
+        <div className="flex flex-wrap items-center justify-center gap-x-2 -mb-2">
+          {isSetup ? (
+            <button
+              type="button"
+              className={linkCls}
+              onClick={() => {
+                setError('');
+                setPin('');
+                setStep(step === 'passphrase' ? 'pin' : 'passphrase');
+              }}
+            >
+              {step === 'passphrase' ? 'Use a PIN instead' : 'Use a passphrase'}
+            </button>
+          ) : (
+            hasPin &&
+            hasPassphrase && (
               <button
                 type="button"
-                disabled={busy}
-                onClick={() => void setupDeviceKeyVault()}
-                className="w-full min-h-[44px] rounded-full border border-[#747775] dark:border-[#8E918F] hub-text-accent text-sm font-medium flex items-center justify-center gap-2 hover:bg-[#E9EEF6] dark:hover:bg-[#282A2C] transition-colors"
+                className={linkCls}
+                onClick={() => {
+                  setError('');
+                  setStep(step === 'passphrase' ? 'pin' : 'passphrase');
+                }}
               >
-                <KeyRound className="w-4 h-4" />
-                <span>Quick Start with Device Key</span>
+                {step === 'passphrase' ? 'Use PIN' : 'Use passphrase'}
               </button>
-              <p className="text-xs text-[#444746] dark:text-[#C4C7C5] text-center">
-                Creates a local 256-bit key on this device. Set a passphrase anytime in Settings for cross-device sync.
-              </p>
-            </div>
+            )
           )}
 
-          <div className="pt-4 border-t border-[#E1E3E1] dark:border-[#444746] space-y-3">
-            {!user ? (
-              <button
-                type="button"
-                disabled={busy || !isOnline}
-                onClick={() => void handleGoogleSyncSignIn()}
-                className="w-full min-h-[44px] rounded-full bg-[#E9EEF6] dark:bg-[#282A2C] text-[#1F1F1F] dark:text-[#E3E3E3] text-sm font-medium hover:bg-[#DCE3EF] dark:hover:bg-[#333537] disabled:opacity-50 transition-colors"
-              >
-                {isOnline
-                  ? isSetup
-                    ? 'Restore Synced Vault with Google'
-                    : 'Sign in with Google'
-                  : 'Offline Mode — Connect to Sync'}
+          {!user && isOnline && (
+            <button type="button" className={linkCls} disabled={busy} onClick={() => void googleRestore()}>
+              {isSetup ? 'Restore with Google' : 'Sign in with Google'}
+            </button>
+          )}
+          {user && (
+            <button type="button" className={linkCls} onClick={() => void signOutGoogle()}>
+              Sign out
+            </button>
+          )}
+
+          {!isSetup &&
+            (!confirmWipe ? (
+              <button type="button" className={linkCls} onClick={() => setConfirmWipe(true)}>
+                Forgot?
               </button>
             ) : (
-              <div className="flex items-center justify-between text-xs text-[#444746] dark:text-[#C4C7C5]">
-                <span className="truncate">{user.email}</span>
+              <span className="inline-flex items-center gap-1">
                 <button
                   type="button"
-                  onClick={() => void signOutGoogle()}
-                  className="font-medium text-[#0B57D0] dark:text-[#A8C7FA] hover:underline ml-3 shrink-0 min-h-[36px]"
+                  className="text-xs font-semibold text-[#C5221F] dark:text-[#F28B82] min-h-[36px] px-2"
+                  onClick={() => {
+                    void wipeLocalVault();
+                    setConfirmWipe(false);
+                    setPin('');
+                  }}
                 >
-                  Sign out
+                  Erase this device
                 </button>
-              </div>
-            )}
-
-            {!isSetup && (
-              <div className="text-center">
-                {!confirmWipe ? (
-                  <button
-                    type="button"
-                    onClick={() => setConfirmWipe(true)}
-                    className="text-xs text-[#444746] dark:text-[#C4C7C5] hover:text-[#0B57D0] dark:hover:text-[#A8C7FA] underline"
-                  >
-                    Forgot passphrase? Reset local vault
-                  </button>
-                ) : (
-                  <div className="flex items-center justify-center gap-3 pt-1">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        void wipeLocalVault();
-                        setConfirmWipe(false);
-                        setPassphrase('');
-                      }}
-                      className="text-xs font-medium text-[#B3261E] dark:text-[#F2B8B5] hover:underline"
-                    >
-                      Confirm local wipe
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setConfirmWipe(false)}
-                      className="text-xs text-[#444746] dark:text-[#C4C7C5] hover:underline"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
+                <button type="button" className={linkCls} onClick={() => setConfirmWipe(false)}>
+                  Cancel
+                </button>
+              </span>
+            ))}
         </div>
-      </main>
-
-      <footer className="w-full max-w-md mx-auto text-center text-xs text-[#444746] dark:text-[#C4C7C5] pb-2">
-        MMV-HUB · Personal Encrypted Storage · Offline-first PWA
-      </footer>
+        {confirmWipe && (
+          <p className="text-[11px] text-center text-[#5F6368] dark:text-[#9AA0A6] -mt-3">
+            Deletes local data. Synced data can be restored with Google + passphrase.
+          </p>
+        )}
+      </div>
     </div>
   );
 };

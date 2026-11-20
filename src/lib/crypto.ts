@@ -1,7 +1,7 @@
 const VERIFIER_PLAINTEXT = 'MMV_HUB_VAULT_KEY_VERIFIED_V1';
 const PBKDF2_ITERATIONS = 150000;
 
-function bytesToBase64(bytes: Uint8Array): string {
+export function bytesToBase64(bytes: Uint8Array): string {
   let binary = '';
   const chunkSize = 0x8000;
   for (let i = 0; i < bytes.length; i += chunkSize) {
@@ -11,9 +11,9 @@ function bytesToBase64(bytes: Uint8Array): string {
   return btoa(binary);
 }
 
-function base64ToBytes(b64: string): Uint8Array {
+export function base64ToBytes(b64: string): Uint8Array<ArrayBuffer> {
   const binary = atob(b64);
-  const bytes = new Uint8Array(binary.length);
+  const bytes = new Uint8Array(new ArrayBuffer(binary.length));
   for (let i = 0; i < binary.length; i++) {
     bytes[i] = binary.charCodeAt(i);
   }
@@ -35,14 +35,8 @@ export async function generateDeviceKey(): Promise<{
     ['encrypt', 'decrypt']
   );
   const jwk = await crypto.subtle.exportKey('jwk', key);
-  const nonExtractable = await crypto.subtle.importKey(
-    'jwk',
-    jwk,
-    { name: 'AES-GCM', length: 256 },
-    false,
-    ['encrypt', 'decrypt']
-  );
-  return { key: nonExtractable, jwk };
+  // Extractable so the key can be wrapped for PIN / fingerprint unlock.
+  return { key, jwk };
 }
 
 export async function importDeviceKey(jwk: JsonWebKey): Promise<CryptoKey> {
@@ -50,7 +44,7 @@ export async function importDeviceKey(jwk: JsonWebKey): Promise<CryptoKey> {
     'jwk',
     jwk,
     { name: 'AES-GCM', length: 256 },
-    false,
+    true,
     ['encrypt', 'decrypt']
   );
 }
@@ -79,7 +73,9 @@ export async function derivePassphraseKey(
     },
     keyMaterial,
     { name: 'AES-GCM', length: 256 },
-    false,
+    // Extractable so the derived vault key can be wrapped for PIN /
+    // fingerprint quick unlock (same bytes as before → fully compatible).
+    true,
     ['encrypt', 'decrypt']
   );
 }
