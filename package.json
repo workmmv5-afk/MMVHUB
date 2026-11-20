@@ -1,14 +1,15 @@
 {
   "name": "mmv-hub",
   "private": true,
-  "version": "2.0.0",
+  "version": "2.1.0",
   "type": "module",
   "scripts": {
     "dev": "vite --port=3000 --host=0.0.0.0",
     "build": "vite build",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "test": "tsx --test \"tests/**/*.test.ts\""
   },
   "dependencies": {
     "@capacitor/android": "^8.6.2",

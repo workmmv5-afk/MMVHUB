@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import {
   Bell,
   BellRing,
@@ -37,28 +37,43 @@ import { PWAInstallButton } from './components/PWAInstallButton';
 import { LogoWordmark } from './components/Logo';
 import { BiometricOffer } from './components/SecuritySettings';
 import { isBackupDue } from './components/DataSettings';
-import { ReviewSheet } from './components/ReviewSheet';
-import { CarryoverSheet } from './components/CarryoverSheet';
+
 import { ShortcutsSheet, useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import {
   useNativeIntegration,
   type NativeIntent,
 } from './hooks/useNativeIntegration';
-import {
-  CalendarEventModal,
-  GoalModal,
-  HabitModal,
-  PurchaseModal,
-  SubscriptionModal,
-  TaskModal,
-} from './components/ItemModals';
-import { HomeView } from './views/HomeView';
-import { PurchasesView } from './views/PurchasesView';
-import { HabitsView } from './views/HabitsView';
-import { TasksView } from './views/TasksView';
-import { CalendarView } from './views/CalendarView';
-import { GoalsView } from './views/GoalsView';
-import { SettingsView, type SettingsSection } from './views/SettingsView';
+import type { SettingsSection } from './views/SettingsView';
+
+// Startup speed: each page, the editors and sheets load on first use.
+// Keeps each component's own prop types while loading it lazily.
+function named<M, K extends keyof M>(loader: () => Promise<M>, name: K): M[K] {
+  return lazy(() =>
+    loader().then((m) => ({ default: m[name] as unknown as React.ComponentType<unknown> }))
+  ) as unknown as M[K];
+}
+const modals = () => import('./components/ItemModals');
+const HomeView = named(() => import('./views/HomeView'), 'HomeView');
+const PurchasesView = named(() => import('./views/PurchasesView'), 'PurchasesView');
+const HabitsView = named(() => import('./views/HabitsView'), 'HabitsView');
+const TasksView = named(() => import('./views/TasksView'), 'TasksView');
+const CalendarView = named(() => import('./views/CalendarView'), 'CalendarView');
+const GoalsView = named(() => import('./views/GoalsView'), 'GoalsView');
+const SettingsView = named(() => import('./views/SettingsView'), 'SettingsView');
+const PurchaseModal = named(modals, 'PurchaseModal');
+const SubscriptionModal = named(modals, 'SubscriptionModal');
+const HabitModal = named(modals, 'HabitModal');
+const TaskModal = named(modals, 'TaskModal');
+const CalendarEventModal = named(modals, 'CalendarEventModal');
+const GoalModal = named(modals, 'GoalModal');
+const ReviewSheet = named(() => import('./components/ReviewSheet'), 'ReviewSheet');
+const CarryoverSheet = named(() => import('./components/CarryoverSheet'), 'CarryoverSheet');
+
+const PageFallback: React.FC = () => (
+  <div className="py-24 flex justify-center" aria-busy="true">
+    <span className="w-6 h-6 rounded-full border-2 border-[var(--hub-accent)] border-t-transparent animate-spin" />
+  </div>
+);
 import {
   collectCategorizedReminders,
   resolveNotificationConfig,
@@ -1183,6 +1198,7 @@ const HubShell: React.FC = () => {
             isCompact ? 'py-3 lg:py-5' : 'py-5 lg:py-8'
           }`}
         >
+          <Suspense fallback={<PageFallback />}>
           {activeTab === 'home' && (
             <HomeView
               onNavigate={navigateTab}
@@ -1296,12 +1312,15 @@ const HubShell: React.FC = () => {
               focusSignal={settingsSignal}
             />
           )}
+          </Suspense>
         </div>
       </main>
 
       <BiometricOffer />
-      {reviewOpen && <ReviewSheet onClose={() => setReviewOpen(false)} />}
-      {carryoverOpen && <CarryoverSheet onClose={() => setCarryoverOpen(false)} />}
+      <Suspense fallback={null}>
+        {reviewOpen && <ReviewSheet onClose={() => setReviewOpen(false)} />}
+        {carryoverOpen && <CarryoverSheet onClose={() => setCarryoverOpen(false)} />}
+      </Suspense>
       {shortcutsOpen && <ShortcutsSheet onClose={() => setShortcutsOpen(false)} />}
 
       {/* Google Material 3 Undo Snackbar */}
@@ -1334,6 +1353,7 @@ const HubShell: React.FC = () => {
         </div>
       )}
 
+      <Suspense fallback={null}>
       {/* Modals / Bottom Sheets */}
       {purchaseModal.open && (
         <PurchaseModal
@@ -1411,6 +1431,8 @@ const HubShell: React.FC = () => {
           onClose={() => setCalendarModal({ open: false })}
         />
       )}
+
+      </Suspense>
 
       {/* Global Quick-Jump Command Palette (Ctrl/Cmd + K) */}
       {commandOpen && (

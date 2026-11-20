@@ -176,6 +176,9 @@ npm run dev
 # Run TypeScript type check
 npm run lint
 
+# Run unit tests (crypto, reminders, widgets, i18n, dates)
+npm test
+
 # Build production PWA bundle (dist/)
 npm run build
 ```
