@@ -8,10 +8,10 @@
 
 1. [Key Features & Page Guide](#key-features--page-guide)
 2. [Security & Sync Architecture](#security--sync-architecture)
-3. [Mobile APK & Cross-Device Engineering Docs](#mobile-apk--cross-device-engineering-docs)
+3. [Android App](#android-app)
 4. [Local Development & GitHub Setup](#local-development--github-setup)
 5. [Project Structure](#project-structure)
-6. [100 Future New Functions Roadmap](#100-future-new-functions-roadmap)
+6. [Roadmap Status](#roadmap-status)
 
 ---
 
@@ -125,161 +125,32 @@ MMV-HUB encrypts **all user content client-side** before saving to local Indexed
 
 ---
 
-## Mobile APK & Cross-Device Engineering Docs
+## Android App
 
-This section defines the complete specification required to build a native **Android Companion APK** (`100%` feature parity with the Web PWA + persistent native OS Reminders + interactive Home-Screen Widget) that connects live to the exact same encrypted vault storage and Cloud Firestore database.
+The Android app is this same web app wrapped with **Capacitor 8** (`android/`), plus native code for widgets, reminders and system integrations. It reads and writes the exact same encrypted vault format as the web app.
 
-### 3.1 Cross-Connection Setup (Firebase, Auth & Named Database)
+### Install / update
+1. On your phone open **[Releases → android-latest](https://github.com/workmmv5-afk/MMVHUB/releases/tag/android-latest)** and download `MMV-HUB-<version>.apk`.
+2. Open it and allow "Install unknown apps" for your browser when asked.
+3. Later builds install over it as normal updates (same signing key).
 
-To ensure edits made on Android sync instantly to the Web PWA (and vice versa) under the exact same user account and Firestore rules (`firestore.rules`):
+> Coming from the old 1.0.x APK? It was signed with a different key, so uninstall it first. Sign in with Google (web) or export a backup before uninstalling.
 
-1. **Register Android App in Firebase Console**:
-   - Open Firebase Console project **`semiotic-bonus-drwfn`**.
-   - Add an Android app with a fixed package ID (e.g., `com.mmvhub.mobile`).
-   - Run `./gradlew signingReport` and register both your **Debug SHA-1 / SHA-256** and **Release Keystore SHA-1 / SHA-256** fingerprints so Google Sign-In returns a verified ID token (`email_verified == true`).
-   - Download `google-services.json` and place it at `android/app/google-services.json`.
-2. **Use the Named Firestore Database (Critical)**:
-   - Do **NOT** call `Firebase.firestore` with the default database. You must bind to the named database ID:
-   ```kotlin
-   val firestore = FirebaseFirestore.getInstance(
-       FirebaseApp.getInstance(),
-       "ai-studio-4a400113-6c7d-4163-883a-9c7cb1d20090"
-   )
-   firestore.firestoreSettings = firestoreSettings {
-       setLocalCacheSettings(persistentCacheSettings {})
-   }
-   ```
-3. **Google Sign-In OAuth Parity**:
-   - Pass the **Web Client ID** from Firebase Auth (`google-services.json` `oauth_client` with `client_type: 3`) into Android Credential Manager (`GetGoogleIdOption`) -> `GoogleAuthProvider.getCredential(idToken, null)` -> `FirebaseAuth.getInstance().signInWithCredential(credential)`.
-   - Verify `auth.currentUser?.isEmailVerified == true` before writing; `firestore.rules` rejects unverified tokens.
+### What's native
+| Area | Details |
+| :--- | :--- |
+| Reminders | Next 7 days planned in JS and scheduled with Android alarms (fire while closed). Done / Snooze / Mark paid buttons, nag mode, quiet hours, active days, pop-up / vibrate / sound channels. |
+| Widgets | Today, Quick add, Spending, Goals — theme, transparency, accent, rows, content, hide amounts / hide when locked (Settings → Phone Widgets). |
+| Unlock | PIN (4–6 digits) + fingerprint via Android Keystore (`@capgo/capacitor-native-biometric`). |
+| System | Launcher shortcuts, Quick Settings tile, Share-to-task, NFC habit check-in links, Material You accent, privacy screen (`FLAG_SECURE`), ongoing Today / Focus notifications. |
 
-### 3.2 Zero-Knowledge Crypto Parity (Kotlin ↔ Web Crypto)
+### How builds work
+- `.github/workflows/android.yml` runs on every push to `main`: type-check → `vite build` → `cap sync android` → Gradle `assembleRelease` → publishes the **android-latest** release.
+- Release signing uses repository secrets `MMV_KEYSTORE_BASE64` and `MMV_KEYSTORE_PASSWORD` (PKCS#12, alias `mmvhub`). **The keystore is never committed** — keep your offline copy safe; losing it means future APKs can't update the installed app.
+- Local build (optional): Android Studio / JDK 21 → `npm run build && npx cap sync android && cd android && ./gradlew assembleDebug`.
 
-The Android APK must match `src/lib/crypto.ts` byte-for-byte so both platforms decrypt each other's records seamlessly:
-
-| Parameter | Web (`src/lib/crypto.ts`) | Android (`javax.crypto`) |
-| :--- | :--- | :--- |
-| **KDF Algorithm** | `PBKDF2` + `SHA-256` | `PBKDF2WithHmacSHA256` |
-| **Iterations** | `150,000` | `150_000` |
-| **Key Length** | `256` bits (`32` bytes) | `256` bits (`32` bytes) |
-| **Cipher** | `AES-GCM` | `AES/GCM/NoPadding` |
-| **IV Length** | `12` bytes (`96` bits) random | `12` bytes (`SecureRandom`) |
-| **GCM Tag** | `128` bits (`16` bytes, appended) | `GCMParameterSpec(128, iv)` |
-| **Verifier Constant** | `MMV_HUB_VAULT_KEY_VERIFIED_V1` | `MMV_HUB_VAULT_KEY_VERIFIED_V1` |
-
-```kotlin
-object VaultCrypto {
-    private const val PBKDF2_ALGO = "PBKDF2WithHmacSHA256"
-    private const val ITERATIONS = 150_000
-    private const val KEY_BITS = 256
-    private const val GCM_TAG_BITS = 128
-    private const val IV_BYTES = 12
-    const val VERIFIER_PLAINTEXT = "MMV_HUB_VAULT_KEY_VERIFIED_V1"
-
-    fun deriveKey(passphrase: String, saltBase64: String): SecretKey {
-        val salt = Base64.decode(saltBase64, Base64.NO_WRAP)
-        val spec = PBEKeySpec(passphrase.toCharArray(), salt, ITERATIONS, KEY_BITS)
-        val factory = SecretKeyFactory.getInstance(PBKDF2_ALGO)
-        val encoded = factory.generateSecret(spec).encoded
-        return SecretKeySpec(encoded, "AES")
-    }
-
-    fun encrypt(key: SecretKey, plaintext: String): Pair<String, String> {
-        val iv = ByteArray(IV_BYTES).also { SecureRandom().nextBytes(it) }
-        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-        cipher.init(Cipher.ENCRYPT_MODE, key, GCMParameterSpec(GCM_TAG_BITS, iv))
-        val ciphertext = cipher.doFinal(plaintext.toByteArray(Charsets.UTF_8))
-        return Base64.encodeToString(iv, Base64.NO_WRAP) to
-            Base64.encodeToString(ciphertext, Base64.NO_WRAP)
-    }
-
-    fun decrypt(key: SecretKey, ivBase64: String, ciphertextBase64: String): String {
-        val iv = Base64.decode(ivBase64, Base64.NO_WRAP)
-        val data = Base64.decode(ciphertextBase64, Base64.NO_WRAP)
-        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-        cipher.init(Cipher.DECRYPT_MODE, key, GCMParameterSpec(GCM_TAG_BITS, iv))
-        return String(cipher.doFinal(data), Charsets.UTF_8)
-    }
-}
-```
-
-- **Device Unlock & Background Key Access**: Store the Base64-encoded derived 256-bit AES key inside **Android Keystore**-backed `EncryptedSharedPreferences` gated by `BiometricPrompt`, allowing headless `WorkManager` workers and Glance widgets to encrypt/decrypt without prompting for the passphrase every time.
-
-### 3.3 Record IDs, Envelopes & JSON Schema Parity (`src/types.ts`)
-
-Every Firestore write from Android must obey `firestore.rules` (strict key whitelist via `hasOnly`) and [`src/types.ts`](./src/types.ts):
-
-| `kind` | ID Format | Key JSON Fields Inside `ciphertext` |
-| :--- | :--- | :--- |
-| `purchase` | `pur_<epochMs>_<12hex>` | `id`, `title`, `amount`, `category`, `paymentMethod`, `date` (`YYYY-MM-DD`), `notes?`, `recurring?`, `isRefund?`, `reimbursable?`, `reimbursed?`, `tags?`, `createdAt`, `updatedAt` |
-| `subscription` | `sub_<epochMs>_<12hex>` | `id`, `name`, `amount`, `billingCycle`, `nextBillingDate`, `category`, `paymentMethod`, `active`, `isTrial?`, `reminderDays?`, `manageUrl?`, `lastPaidDate?`, `totalPaidCount?`, `notes?`, `createdAt`, `updatedAt` |
-| `habit` | `hab_<epochMs>_<12hex>` | `id`, `name`, `cadence`, `customWeekdays?`, `customMode?`, `intervalDays?`, `startDate?`, `monthlyDays?`, `timeOfDay?`, `preferredTime?`, `category?`, `color?`, `notes?`, `targetPerDay`, `unit?`, `logs` (`{"YYYY-MM-DD": count}`), `archived?`, `createdAt`, `updatedAt` |
-| `task` | `tsk_<epochMs>_<12hex>` | `id`, `listId?`, `title`, `completed`, `starred?`, `starredAt?`, `priority`, `dueDate?`, `dueTime?`, `repeat?`, `order?`, `area?`, `notes?`, `subtasks?`, `completedAt?`, `createdAt`, `updatedAt` |
-| `tasklist` | `lst_<epochMs>_<12hex>` | `id`, `name`, `createdAt`, `updatedAt` |
-| `calendar` | `cal_<epochMs>_<12hex>` | `id`, `title`, `date`, `allDay`, `startTime?`, `endTime?`, `location?`, `notes?`, `color`, `repeat?`, `createdAt`, `updatedAt` |
-| `prefs` | `prefs_default` | `id`, `currency`, `monthlyBudget`, `monthlySavingsGoal?`, `autoLockMinutes`, `accentTheme?`, `density?`, `weekStartsOn?`, `notificationsEnabled?`, `dailyDigestTime?`, `notifyTasks?`, `notifyHabits?`, `notifySubscriptions?`, `notifyEvents?`, `scratchpad?`, `focusSessionsToday?`, `updatedAt` |
-
-**Firestore Rules Write Constraints**:
-- Document updates on `/users/{uid}/vaultItems/{itemId}` MUST keep `ownerId`, `kind`, and `createdAt` unchanged, set `updatedAt = FieldValue.serverTimestamp()`, increment `version` (`<= 1_000_000`), and ensure `ciphertext.length <= 32768`.
-- Soft deletes set `deleted = true` (tombstone lock: once `deleted == true`, `firestore.rules` disallows reverting the same doc ID back to `false`—to undo a delete, generate a new record ID just like `VaultContext.tsx`).
-- Conflict resolution mirrors `src/lib/syncEngine.ts`: remote wins if `remote.clientUpdatedAt > local.clientUpdatedAt` (or equal timestamp with `remote.version > local.version`).
-
-### 3.4 Android Prerequisites, Manifest Permissions & Dependencies
-
-- **Build Toolchain**:
-  - Android Studio Ladybug / Jellyfish or newer (`JDK 17+`)
-  - Kotlin `2.0+`, Jetpack Compose BOM, `minSdk = 26` (Android 8.0+), `targetSdk = 35` (Android 15)
-  - Node-synced version tag matching `package.json`
-- **Required `AndroidManifest.xml` Permissions**:
-  ```xml
-  <uses-permission android:name="android.permission.INTERNET" />
-  <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-  <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-  <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
-  <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
-  <uses-permission android:name="android.permission.USE_BIOMETRIC" />
-  <uses-permission android:name="android.permission.WAKE_LOCK" />
-  ```
-- **Required Gradle Libraries (`libs.versions.toml` / `build.gradle.kts`)**:
-  - **Firebase & Auth**: `firebase-bom`, `firebase-auth-ktx`, `firebase-firestore-ktx`, `androidx.credentials:credentials`, `com.google.android.libraries.identity.googleid:googleid`
-  - **Offline Storage & Serialization**: `androidx.room:room-runtime`, `androidx.room:room-ktx` (KSP), `org.jetbrains.kotlinx:kotlinx-serialization-json`
-  - **Background & Alarms**: `androidx.work:work-runtime-ktx`
-  - **Widget & UI**: `androidx.glance:glance-appwidget`, `androidx.glance:glance-material3`, `androidx.compose.material3:material3`
-  - **Crypto & Lock**: `androidx.security:security-crypto`, `androidx.biometric:biometric`
-
-### 3.5 Persistent Background Reminders Architecture
-
-Unlike web browsers that suspend background tabs, the APK guarantees on-time delivery even after reboot or swiping the app away:
-
-1. **Local Room Mirror**: Every Firestore snapshot (or local edit) decrypts and updates Room tables (`tasks`, `habits`, `subscriptions`, `events`, `preferences`).
-2. **Exact Alarm Scheduler (`AlarmManager`)**:
-   - Re-evaluates schedules whenever Room changes, on `BOOT_COMPLETED`, `TIME_SET`, `TIMEZONE_CHANGED`, and via a daily `WorkManager` midnight refresh.
-   - Calls `alarmManager.setExactAndAllowWhileIdle(RTC_WAKEUP, triggerMillis, pendingIntent)` for:
-     - **Tasks**: `dueTime - 15m` (or `dailyDigestTime` on `dueDate`), plus morning overdue summary for `Missed` items.
-     - **Habits**: `preferredTime` (or `dailyDigestTime`) strictly on days matching `isHabitScheduledOnDate()`.
-     - **Subscriptions**: `reminderDays` window ahead of `nextBillingDate` at `dailyDigestTime`.
-     - **Calendar Events**: `startTime - 30m` (or `dailyDigestTime` for `allDay`).
-3. **Interactive Notification Channels & Actions**:
-   - Register 4 high/default channels: `mmv_tasks`, `mmv_habits`, `mmv_renewals`, `mmv_events`.
-   - Attach `PendingIntent` action buttons directly on notifications: **Mark Done**, **Snooze 1 Day**, and **Log Paid**. Tapping an action runs a headless `BroadcastReceiver` + `CoroutineWorker` that mutates Room, encrypts the JSON with `VaultCrypto`, pushes to Firestore (or queues offline via Firestore persistence), cancels the notification, and refreshes the Home Widget.
-
-### 3.6 Jetpack Glance Home-Screen Widget Specification
-
-Build an always-on **Material You (`GlanceAppWidget`)** widget supporting two responsive sizes:
-- **`4x2` Compact Agenda**: Today's habit progress ring (`done/total`), top 3 uncompleted tasks due today/overdue, and quick `+` launch shortcut.
-- **`4x4` Daily Hub**: Progress ring + Today's Tasks checklist + Today's Habits checklist + Next Calendar Event / Subscription renewal countdown + missed alert counter.
-- **1-Tap Widget Mutation Loop**:
-  1. User taps a Task or Habit checkbox on the home screen.
-  2. `ActionCallback` updates the local Room entity immediately for instant widget feedback.
-  3. Worker encrypts updated JSON (`clientUpdatedAt = now`, `version + 1`), commits to `/users/{uid}/vaultItems/{id}` (auto-syncing to the Web PWA), and triggers `MMVWidget().updateAll(context)`.
-
-### 3.7 Release Signing & Deployment Checklist
-
-- [ ] Generate upload keystore: `keytool -genkey -v -keystore mmv-release.jks -keyalg RSA -keysize 2048 -validity 10000 -alias mmvhub`
-- [ ] Add Release SHA-1 & SHA-256 to Firebase Project `semiotic-bonus-drwfn`
-- [ ] Configure ProGuard/R8 keep rules for `@Keep` Firestore POJOs and `@Serializable` vault payloads
-- [ ] Test offline flight-mode write in APK -> reconnect -> confirm live update appears in Web PWA within 2 seconds
-- [ ] Build signed APK: `./gradlew assembleRelease` (output in `app/build/outputs/apk/release/`)
+### Known limitation
+Google sign-in for cloud sync isn't available inside the app yet (Google blocks its sign-in pop-up in app WebViews). The vault works fully offline on the phone; use the web app to sync, or move data with Export / Import.
 
 ---
 
@@ -355,6 +226,21 @@ src/
 ```
 
 ---
+
+## Roadmap Status
+
+**84 of 100 shipped** · 20 existed before v2.0, 64 added in v2.0 · 16 not done (reasons below).
+
+| Status | Items |
+| :--- | :--- |
+| ✅ Already in v1 | 003, 008, 009, 011, 014, 015, 017, 021, 023, 027, 031, 034 (built-in smart views), 035, 039, 040, 051, 054, 055, 091, 099 |
+| ✅ Added in v2.0 | 001, 002, 004, 006 (Goals page), 007, 010, 012, 013, 016, 018, 019, 020, 024, 025, 026, 028, 029, 030, 032, 033, 036, 037, 038, 042, 043, 044, 045, 046, 047, 049, 050, 052, 053, 057, 058 (sound / vibrate / pop-up channels), 059, 060, 061, 062, 063, 064, 065, 066, 068, 069, 070, 072, 073, 077, 080, 081 (fingerprint), 082, 084, 085, 086, 088, 089, 092, 093, 095, 096, 097, 098, 100 |
+| ⏳ Not yet | 022 Habit routines · 041 Drag-to-reschedule · 048 Per-event timezone — feasible, not built yet |
+| 🚫 Needs backend / rules change | 071 Device sessions, 094 Notes drawer (new Firestore kinds must be added to `firestore.rules` and deployed first) |
+| 🚫 Unsafe or breaks compatibility | 076 Tombstone GC (devices offline >90 days could resurrect data), 083 Duress PIN, 087 Argon2id, 090 KDF tuner (existing vaults & other devices could no longer unlock) |
+| 🚫 Out of scope for this app | 005 On-device OCR (large ML model), 056 Geofencing, 067 Wear OS, 074 Conflict merge UI, 075 P2P QR transfer, 078 Web-worker decrypt, 079 Periodic background sync |
+
+The original wish list is kept below for reference.
 
 ## 100 Future New Functions Roadmap
 
