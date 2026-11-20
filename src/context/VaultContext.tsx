@@ -8,7 +8,9 @@ import React, {
   useState,
 } from 'react';
 import {
+  GoogleAuthProvider,
   onAuthStateChanged,
+  signInWithCredential,
   signInWithPopup,
   signOut,
   type User,
@@ -63,7 +65,7 @@ import {
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { useAppActive } from '../hooks/useAppActive';
 import { applyTypography, resolveTypography } from '../lib/typography';
-import { isNative, MmvWidgets } from '../lib/native';
+import { isNative, MmvGoogleAuth, MmvWidgets, nativeGoogleIdToken } from '../lib/native';
 import { applyCustomAccent } from '../lib/accent';
 import { haptic, setHapticsEnabled } from '../lib/haptics';
 import {
@@ -1089,13 +1091,11 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
   );
 
   const signInWithGoogle = useCallback(async () => {
-    if (isNative()) {
-      // Google blocks its sign-in popup inside app WebViews
-      throw new Error(
-        'Google sign-in isn’t available in the app yet. Your vault works offline on this phone; sync from the web version.'
-      );
-    }
-    const cred = await signInWithPopup(auth, googleProvider);
+    // Web: popup. Android app: native account picker (Credential Manager)
+    // → Google ID token → Firebase credential (WebView popups are blocked).
+    const cred = isNative()
+      ? await signInWithCredential(auth, GoogleAuthProvider.credential(await nativeGoogleIdToken()))
+      : await signInWithPopup(auth, googleProvider);
     const signedInUser = cred.user;
     if (isOnline) {
       const cloudProfile = await fetchCloudVaultProfile(signedInUser.uid);
@@ -1138,6 +1138,7 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const signOutGoogle = useCallback(async () => {
     await signOut(auth);
+    if (isNative()) await MmvGoogleAuth.signOut().catch(() => undefined);
     setSyncStatus((prev) => ({ ...prev, phase: 'local-only' }));
   }, []);
 

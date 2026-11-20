@@ -149,8 +149,12 @@ The Android app is this same web app wrapped with **Capacitor 8** (`android/`), 
 - Release signing uses repository secrets `MMV_KEYSTORE_BASE64` and `MMV_KEYSTORE_PASSWORD` (PKCS#12, alias `mmvhub`). **The keystore is never committed** — keep your offline copy safe; losing it means future APKs can't update the installed app.
 - Local build (optional): Android Studio / JDK 21 → `npm run build && npx cap sync android && cd android && ./gradlew assembleDebug`.
 
-### Known limitation
-Google sign-in for cloud sync isn't available inside the app yet (Google blocks its sign-in pop-up in app WebViews). The vault works fully offline on the phone; use the web app to sync, or move data with Export / Import.
+### Google sign-in in the app (one-time setup)
+The app signs in with Android's native account picker (Credential Manager) and passes the Google token to Firebase. Google only issues tokens to registered apps, so once:
+1. Open [Google Cloud Console → Credentials](https://console.cloud.google.com/apis/credentials?project=semiotic-bonus-drwfn) for the Firebase project (`semiotic-bonus-drwfn`).
+2. **Create credentials → OAuth client ID → Android**.
+3. Package name `com.mmvhub.mobile`, SHA-1 `E5:05:CB:42:B9:D7:E6:AE:60:C4:10:23:31:C9:DB:AD:16:42:74:B2` (release key).
+4. Save. No new APK is needed — sign-in works within a few minutes.
 
 ---
 
