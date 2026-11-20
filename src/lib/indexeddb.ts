@@ -5,7 +5,32 @@ const DB_VERSION = 1;
 const STORE_META = 'vaultMeta';
 const STORE_RECORDS = 'records';
 
+// One shared connection instead of opening a new one on every read/write.
+let dbPromise: Promise<IDBDatabase> | null = null;
+
 function openVaultDB(): Promise<IDBDatabase> {
+  if (dbPromise) return dbPromise;
+  dbPromise = openVaultDBUncached().then(
+    (db) => {
+      // Reset cache if the browser closes the connection (e.g. storage cleared)
+      db.onclose = () => {
+        dbPromise = null;
+      };
+      db.onversionchange = () => {
+        db.close();
+        dbPromise = null;
+      };
+      return db;
+    },
+    (err) => {
+      dbPromise = null;
+      throw err;
+    }
+  );
+  return dbPromise;
+}
+
+function openVaultDBUncached(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
     request.onupgradeneeded = () => {
@@ -51,6 +76,18 @@ export async function getAllLocalRecords(): Promise<LocalVaultRecord[]> {
     const tx = db.transaction(STORE_RECORDS, 'readonly');
     const req = tx.objectStore(STORE_RECORDS).getAll();
     req.onsuccess = () => resolve((req.result as LocalVaultRecord[]) ?? []);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+export async function getLocalRecord(
+  id: string
+): Promise<LocalVaultRecord | null> {
+  const db = await openVaultDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_RECORDS, 'readonly');
+    const req = tx.objectStore(STORE_RECORDS).get(id);
+    req.onsuccess = () => resolve((req.result as LocalVaultRecord) ?? null);
     req.onerror = () => reject(req.error);
   });
 }

@@ -16,6 +16,9 @@ import {
 import type {
   AccentTheme,
   CalendarEventRecord,
+  GoalMilestone,
+  GoalRecord,
+  GoalStatus,
   HabitRecord,
   HubPreferences,
   LocalVaultMeta,
@@ -41,6 +44,7 @@ import {
 import {
   clearAllLocalVaultData,
   getAllLocalRecords,
+  getLocalRecord,
   getLocalVaultMeta,
   putLocalRecord,
   putLocalRecordsBatch,
@@ -62,10 +66,13 @@ import {
   getTodayISO,
 } from '../lib/format';
 import {
+  clearNotificationSentLog,
   dispatchLocalNotification,
   firePendingReminderNotifications,
   getNotificationPermission,
+  maybeFireEveningSummary,
   requestNotificationPermission,
+  updateAppBadge,
 } from '../lib/notifications';
 
 export type VaultPhase =
@@ -98,6 +105,7 @@ const DEFAULT_PREFERENCES: HubPreferences = {
   notifyHabits: true,
   notifySubscriptions: true,
   notifyEvents: true,
+  notifyGoals: true,
   oledDark: false,
   privacyBlur: false,
   quietHoursEnabled: false,
@@ -125,6 +133,7 @@ interface VaultContextValue {
   tasks: TaskRecord[];
   taskLists: TaskListRecord[];
   calendarEvents: CalendarEventRecord[];
+  goals: GoalRecord[];
   preferences: HubPreferences;
   snackbar: SnackbarNotice | null;
   dismissSnackbar: () => void;
@@ -203,7 +212,18 @@ interface VaultContextValue {
     }
   ) => Promise<void>;
   deleteCalendarEvent: (id: string) => Promise<void>;
-  updatePreferences: (patch: Partial<HubPreferences>) => Promise<void>;
+  saveGoal: (
+    data: Omit<GoalRecord, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }
+  ) => Promise<void>;
+  deleteGoal: (id: string) => Promise<void>;
+  setGoalStatus: (id: string, status: GoalStatus) => Promise<void>;
+  adjustGoalValue: (id: string, delta: number) => Promise<void>;
+  toggleGoalMilestone: (goalId: string, milestoneId: string) => Promise<void>;
+  updatePreferences: (
+    patch:
+      | Partial<HubPreferences>
+      | ((prev: HubPreferences) => Partial<HubPreferences>)
+  ) => Promise<void>;
   sendTestNotification: () => Promise<boolean>;
   runReminderSweepNow: () => Promise<number>;
   exportEncryptedBackup: () => Promise<string>;
@@ -218,6 +238,18 @@ export function useVault(): VaultContextValue {
   const ctx = useContext(VaultContext);
   if (!ctx) throw new Error('useVault must be used within VaultProvider');
   return ctx;
+}
+
+/** Copy only the listed keys that are actually set on `src`. */
+function pickDefined<T extends object, K extends keyof T>(
+  src: T,
+  keys: K[]
+): Partial<Pick<T, K>> {
+  const out: Partial<Pick<T, K>> = {};
+  for (const k of keys) {
+    if (src[k] !== undefined) out[k] = src[k];
+  }
+  return out;
 }
 
 function applyThemeToDOM(mode: ThemeMode) {
@@ -247,6 +279,7 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
   const [calendarEvents, setCalendarEvents] = useState<CalendarEventRecord[]>(
     []
   );
+  const [goals, setGoals] = useState<GoalRecord[]>([]);
   const [preferences, setPreferences] =
     useState<HubPreferences>(DEFAULT_PREFERENCES);
   const [snackbar, setSnackbar] = useState<SnackbarNotice | null>(null);
@@ -336,6 +369,7 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
     const nextTasks: TaskRecord[] = [];
     const nextTaskLists: TaskListRecord[] = [];
     const nextCalendarEvents: CalendarEventRecord[] = [];
+    const nextGoals: GoalRecord[] = [];
     let nextPrefs: HubPreferences = DEFAULT_PREFERENCES;
     let pendingCount = 0;
 
@@ -374,6 +408,10 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
               rec.iv,
               rec.ciphertext
             )
+          );
+        } else if (rec.kind === 'goal') {
+          nextGoals.push(
+            await decryptPayload<GoalRecord>(key, rec.iv, rec.ciphertext)
           );
         } else if (rec.kind === 'prefs') {
           nextPrefs = await decryptPayload<HubPreferences>(
@@ -414,6 +452,18 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
     setTasks(nextTasks);
     setTaskLists(nextTaskLists);
     setCalendarEvents(nextCalendarEvents);
+    const statusRank: Record<GoalStatus, number> = {
+      active: 0,
+      paused: 1,
+      completed: 2,
+    };
+    nextGoals.sort(
+      (a, b) =>
+        statusRank[a.status] - statusRank[b.status] ||
+        (a.targetDate || '9999').localeCompare(b.targetDate || '9999') ||
+        a.createdAt - b.createdAt
+    );
+    setGoals(nextGoals);
     setPreferences({ ...DEFAULT_PREFERENCES, ...nextPrefs });
     if (nextPrefs.accentTheme) {
       setAccentThemeState(nextPrefs.accentTheme);
@@ -596,6 +646,7 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
     setTasks([]);
     setTaskLists([]);
     setCalendarEvents([]);
+    setGoals([]);
     setPreferences(DEFAULT_PREFERENCES);
     setPhase('needs-unlock');
   }, []);
@@ -742,12 +793,12 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
     async <T extends { id: string }>(
       kind: VaultRecordKind,
       payload: T,
-      deleted = false
+      deleted = false,
+      opts?: { deferRefresh?: boolean }
     ) => {
       const key = activeKeyRef.current;
       if (!key) throw new Error('Vault is locked');
-      const existingAll = await getAllLocalRecords();
-      const existingRec = existingAll.find((r) => r.id === payload.id);
+      const existingRec = await getLocalRecord(payload.id);
       const { iv, ciphertext } = await encryptPayload(key, payload);
       const now = Date.now();
       const record: LocalVaultRecord = {
@@ -762,6 +813,9 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
         syncedToCloud: existingRec?.syncedToCloud ?? false,
       };
       await putLocalRecord(record);
+      // Bulk operations defer the (full-vault) decrypt + cloud push and call
+      // refreshAfterBatch() once at the end instead of once per record.
+      if (opts?.deferRefresh) return;
       await reloadAndDecryptRecords(key);
       if (user && isOnline) {
         void runPushSync();
@@ -769,6 +823,15 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
     },
     [user, isOnline, reloadAndDecryptRecords, runPushSync]
   );
+
+  const refreshAfterBatch = useCallback(async () => {
+    const key = activeKeyRef.current;
+    if (!key) return;
+    await reloadAndDecryptRecords(key);
+    if (user && isOnline) {
+      void runPushSync();
+    }
+  }, [user, isOnline, reloadAndDecryptRecords, runPushSync]);
 
   // Purchases
   const savePurchase = useCallback(
@@ -1064,6 +1127,18 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
           ? Math.min(7, Math.max(1, Math.round(data.weeklyQuota)))
           : undefined;
       const record: HabitRecord = {
+        // Keep fields this form doesn't manage (habitType, progressive, …)
+        ...existingItem,
+        ...pickDefined(data, [
+          'habitType',
+          'goalContribution',
+          'progressiveStart',
+          'progressiveStep',
+          'progressiveEveryDays',
+          'progressiveCap',
+        ]),
+        goalId:
+          'goalId' in data ? data.goalId || undefined : existingItem?.goalId,
         id: data.id || createRecordId('hab'),
         name: data.name.trim(),
         mode: data.mode ?? existingItem?.mode ?? 'build',
@@ -1264,18 +1339,26 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
       for (const t of tasksInList) {
         await persistEncryptedRecord(
           'task',
-          { ...t, listId: DEFAULT_TASK_LIST_ID, updatedAt: Date.now() },
-          false
+          {
+            ...t,
+            listId: DEFAULT_TASK_LIST_ID,
+            area: 'My Tasks',
+            updatedAt: Date.now(),
+          },
+          false,
+          { deferRefresh: true }
         );
       }
       await persistEncryptedRecord(
         'tasklist',
         { ...target, updatedAt: Date.now() },
-        true
+        true,
+        { deferRefresh: true }
       );
+      await refreshAfterBatch();
       showSnackbar(`Deleted list "${target.name}" (tasks moved to My Tasks)`);
     },
-    [taskLists, tasks, persistEncryptedRecord, showSnackbar]
+    [taskLists, tasks, persistEncryptedRecord, refreshAfterBatch, showSnackbar]
   );
 
   const saveTask = useCallback(
@@ -1295,6 +1378,16 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
           : listObj?.name ?? data.area?.trim() ?? 'My Tasks';
 
       const record: TaskRecord = {
+        // Keep fields this form doesn't manage (taskType, progress, …)
+        ...existingItem,
+        ...pickDefined(data, [
+          'taskType',
+          'progressCurrent',
+          'progressTarget',
+          'progressUnit',
+        ]),
+        goalId:
+          'goalId' in data ? data.goalId || undefined : existingItem?.goalId,
         id: data.id || createRecordId('tsk'),
         listId,
         title: data.title.trim(),
@@ -1511,16 +1604,19 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
       const now = Date.now();
       for (let i = 0; i < reordered.length; i++) {
         const t = tasks.find((x) => x.id === reordered[i]);
-        if (t) {
+        // Only rewrite tasks whose order actually changes
+        if (t && t.order !== (i + 1) * 100) {
           await persistEncryptedRecord(
             'task',
             { ...t, order: (i + 1) * 100, updatedAt: now },
-            false
+            false,
+            { deferRefresh: true }
           );
         }
       }
+      await refreshAfterBatch();
     },
-    [tasks, persistEncryptedRecord]
+    [tasks, persistEncryptedRecord, refreshAfterBatch]
   );
 
   const snoozeTaskToTomorrow = useCallback(
@@ -1567,7 +1663,8 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
             await persistEncryptedRecord(
               'task',
               { ...target, completed: true, completedAt: now, updatedAt: now },
-              false
+              false,
+              { deferRefresh: true }
             );
             count++;
           }
@@ -1575,18 +1672,21 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
           await persistEncryptedRecord(
             'task',
             { ...target, dueDate: tomorrowISO, updatedAt: now },
-            false
+            false,
+            { deferRefresh: true }
           );
           count++;
         } else if (action === 'delete') {
           await persistEncryptedRecord(
             'task',
             { ...target, updatedAt: now },
-            true
+            true,
+            { deferRefresh: true }
           );
           count++;
         }
       }
+      await refreshAfterBatch();
       if (count > 0) {
         showSnackbar(
           action === 'complete'
@@ -1597,7 +1697,7 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
         );
       }
     },
-    [tasks, persistEncryptedRecord, showSnackbar]
+    [tasks, persistEncryptedRecord, refreshAfterBatch, showSnackbar]
   );
 
   const rescheduleMissedToToday = useCallback(async (): Promise<number> => {
@@ -1611,14 +1711,16 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
       await persistEncryptedRecord(
         'task',
         { ...t, dueDate: todayISO, updatedAt: now },
-        false
+        false,
+        { deferRefresh: true }
       );
     }
+    await refreshAfterBatch();
     showSnackbar(
       `Rescheduled ${overdue.length} missed task${overdue.length === 1 ? '' : 's'} to Today`
     );
     return overdue.length;
-  }, [tasks, persistEncryptedRecord, showSnackbar]);
+  }, [tasks, persistEncryptedRecord, refreshAfterBatch, showSnackbar]);
 
   const deleteTask = useCallback(
     async (id: string) => {
@@ -1657,14 +1759,16 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
         await persistEncryptedRecord(
           'task',
           { ...item, updatedAt: Date.now() },
-          true
+          true,
+          { deferRefresh: true }
         );
       }
       if (done.length > 0) {
+        await refreshAfterBatch();
         showSnackbar(`Deleted ${done.length} completed tasks`);
       }
     },
-    [tasks, persistEncryptedRecord, showSnackbar]
+    [tasks, persistEncryptedRecord, refreshAfterBatch, showSnackbar]
   );
 
   // Calendar Events
@@ -1689,10 +1793,12 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
         notes: data.notes?.trim() || undefined,
         color: data.color || 'blue',
         repeat: data.repeat ?? 'none',
+        // undefined = follow the global default lead time in Notification settings
         reminderOffsetMinutes:
-          data.reminderOffsetMinutes !== undefined
+          data.reminderOffsetMinutes !== undefined &&
+          data.reminderOffsetMinutes >= 0
             ? data.reminderOffsetMinutes
-            : existingItem?.reminderOffsetMinutes ?? 0,
+            : undefined,
         isMilestone: Boolean(data.isMilestone),
         createdAt: existingItem?.createdAt ?? now,
         updatedAt: now,
@@ -1729,20 +1835,236 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
     [calendarEvents, persistEncryptedRecord, showSnackbar]
   );
 
+  // Goals
+  const saveGoal = useCallback(
+    async (
+      data: Omit<GoalRecord, 'id' | 'createdAt' | 'updatedAt'> & {
+        id?: string;
+      }
+    ) => {
+      const now = Date.now();
+      const existingItem = data.id
+        ? goals.find((g) => g.id === data.id)
+        : undefined;
+      const cleanUrl = data.imageUrl?.trim();
+      const target =
+        typeof data.targetValue === 'number' && data.targetValue > 0
+          ? data.targetValue
+          : undefined;
+      const milestones: GoalMilestone[] | undefined =
+        data.milestones && data.milestones.length > 0
+          ? data.milestones
+              .filter((m) => m.title.trim())
+              .slice(0, 50)
+              .map((m) => ({
+                id: m.id,
+                title: m.title.trim().slice(0, 140),
+                done: Boolean(m.done),
+                targetDate: m.targetDate || undefined,
+              }))
+          : undefined;
+      const record: GoalRecord = {
+        ...existingItem,
+        id: data.id || createRecordId('gol'),
+        title: data.title.trim().slice(0, 140),
+        description: data.description?.trim().slice(0, 2000) || undefined,
+        category: data.category?.trim().slice(0, 40) || 'Personal',
+        color: data.color || 'blue',
+        status: data.status ?? 'active',
+        progressMode: data.progressMode ?? 'hybrid',
+        currentValue:
+          target !== undefined ? Math.max(0, Number(data.currentValue) || 0) : undefined,
+        targetValue: target,
+        unit: target !== undefined ? data.unit?.trim().slice(0, 20) || undefined : undefined,
+        targetDate: data.targetDate || undefined,
+        milestones: milestones && milestones.length > 0 ? milestones : undefined,
+        // Only remote http(s) images: data URLs would exceed the 32 KB
+        // per-record Firestore limit.
+        imageUrl:
+          cleanUrl && /^https?:\/\//i.test(cleanUrl) ? cleanUrl.slice(0, 2000) : undefined,
+        imageConfig: data.imageConfig ?? existingItem?.imageConfig,
+        createdAt: existingItem?.createdAt ?? now,
+        updatedAt: now,
+      };
+      await persistEncryptedRecord('goal', record, false);
+      showSnackbar(existingItem ? 'Goal updated' : 'Goal created');
+    },
+    [goals, persistEncryptedRecord, showSnackbar]
+  );
+
+  const deleteGoal = useCallback(
+    async (id: string) => {
+      const target = goals.find((g) => g.id === id);
+      if (!target) return;
+      const now = Date.now();
+      // Unlink tasks & habits so they don't point at a deleted goal
+      const linkedTasks = tasks.filter((t) => t.goalId === id);
+      const linkedHabits = habits.filter((h) => h.goalId === id);
+      for (const t of linkedTasks) {
+        await persistEncryptedRecord(
+          'task',
+          { ...t, goalId: undefined, updatedAt: now },
+          false,
+          { deferRefresh: true }
+        );
+      }
+      for (const h of linkedHabits) {
+        await persistEncryptedRecord(
+          'habit',
+          { ...h, goalId: undefined, updatedAt: now },
+          false,
+          { deferRefresh: true }
+        );
+      }
+      await persistEncryptedRecord('goal', { ...target, updatedAt: now }, true, {
+        deferRefresh: true,
+      });
+      await refreshAfterBatch();
+      showSnackbar(`Deleted "${target.title}"`, 'Undo', async () => {
+        const restoredAt = Date.now();
+        const newId = createRecordId('gol');
+        await persistEncryptedRecord(
+          'goal',
+          { ...target, id: newId, createdAt: restoredAt, updatedAt: restoredAt },
+          false,
+          { deferRefresh: true }
+        );
+        for (const t of linkedTasks) {
+          await persistEncryptedRecord(
+            'task',
+            { ...t, goalId: newId, updatedAt: restoredAt },
+            false,
+            { deferRefresh: true }
+          );
+        }
+        for (const h of linkedHabits) {
+          await persistEncryptedRecord(
+            'habit',
+            { ...h, goalId: newId, updatedAt: restoredAt },
+            false,
+            { deferRefresh: true }
+          );
+        }
+        await refreshAfterBatch();
+      });
+    },
+    [goals, tasks, habits, persistEncryptedRecord, refreshAfterBatch, showSnackbar]
+  );
+
+  const setGoalStatus = useCallback(
+    async (id: string, status: GoalStatus) => {
+      const target = goals.find((g) => g.id === id);
+      if (!target || target.status === status) return;
+      await persistEncryptedRecord(
+        'goal',
+        { ...target, status, updatedAt: Date.now() },
+        false
+      );
+      showSnackbar(
+        status === 'completed'
+          ? `🎉 Completed "${target.title}"`
+          : status === 'paused'
+            ? `Paused "${target.title}"`
+            : `Reopened "${target.title}"`,
+        'Undo',
+        async () => {
+          await persistEncryptedRecord(
+            'goal',
+            { ...target, updatedAt: Date.now() },
+            false
+          );
+        }
+      );
+    },
+    [goals, persistEncryptedRecord, showSnackbar]
+  );
+
+  const adjustGoalValue = useCallback(
+    async (id: string, delta: number) => {
+      const target = goals.find((g) => g.id === id);
+      if (!target || !target.targetValue) return;
+      const next = Math.max(
+        0,
+        Math.round(((target.currentValue ?? 0) + delta) * 100) / 100
+      );
+      await persistEncryptedRecord(
+        'goal',
+        { ...target, currentValue: next, updatedAt: Date.now() },
+        false
+      );
+      if (
+        target.status === 'active' &&
+        next >= target.targetValue &&
+        (target.currentValue ?? 0) < target.targetValue
+      ) {
+        showSnackbar(`Target reached for "${target.title}"! Mark it complete?`, 'Complete', async () => {
+          await persistEncryptedRecord(
+            'goal',
+            { ...target, currentValue: next, status: 'completed', updatedAt: Date.now() },
+            false
+          );
+        });
+      }
+    },
+    [goals, persistEncryptedRecord, showSnackbar]
+  );
+
+  const toggleGoalMilestone = useCallback(
+    async (goalId: string, milestoneId: string) => {
+      const target = goals.find((g) => g.id === goalId);
+      if (!target?.milestones) return;
+      const milestones = target.milestones.map((m) =>
+        m.id === milestoneId ? { ...m, done: !m.done } : m
+      );
+      await persistEncryptedRecord(
+        'goal',
+        { ...target, milestones, updatedAt: Date.now() },
+        false
+      );
+      const allDone = milestones.every((m) => m.done);
+      if (allDone && target.status === 'active') {
+        showSnackbar('All milestones done! Mark goal complete?', 'Complete', async () => {
+          await persistEncryptedRecord(
+            'goal',
+            { ...target, milestones, status: 'completed', updatedAt: Date.now() },
+            false
+          );
+        });
+      }
+    },
+    [goals, persistEncryptedRecord, showSnackbar]
+  );
+
+  // Track the newest preferences synchronously so back-to-back updates
+  // (fast toggles, time pickers) merge instead of overwriting each other.
+  const latestPrefsRef = useRef<HubPreferences>(preferences);
+  useEffect(() => {
+    latestPrefsRef.current = preferences;
+  }, [preferences]);
+
   const updatePreferences = useCallback(
-    async (patch: Partial<HubPreferences>) => {
+    async (
+      patchOrFn:
+        | Partial<HubPreferences>
+        | ((prev: HubPreferences) => Partial<HubPreferences>)
+    ) => {
+      const patch =
+        typeof patchOrFn === 'function'
+          ? patchOrFn(latestPrefsRef.current)
+          : patchOrFn;
       const next: HubPreferences = {
-        ...preferences,
+        ...latestPrefsRef.current,
         ...patch,
         id: 'prefs_default',
         updatedAt: Date.now(),
       };
+      latestPrefsRef.current = next;
       if (patch.accentTheme) {
         setAccentTheme(patch.accentTheme);
       }
       await persistEncryptedRecord('prefs', next, false);
     },
-    [preferences, persistEncryptedRecord, setAccentTheme]
+    [persistEncryptedRecord, setAccentTheme]
   );
 
   const sendTestNotification = useCallback(async (): Promise<boolean> => {
@@ -1783,6 +2105,7 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
         subscriptions,
         purchases,
         calendarEvents,
+        goals,
         preferences,
       },
       { forceAll: true }
@@ -1799,6 +2122,7 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
     subscriptions,
     purchases,
     calendarEvents,
+    goals,
     preferences,
     showSnackbar,
   ]);
@@ -1819,6 +2143,13 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
         subscriptions,
         purchases,
         calendarEvents,
+        goals,
+        preferences,
+      });
+      void maybeFireEveningSummary({
+        tasks,
+        habits,
+        calendarEvents,
         preferences,
       });
     };
@@ -1832,6 +2163,7 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
     subscriptions,
     purchases,
     calendarEvents,
+    goals,
     preferences,
   ]);
 
@@ -1950,6 +2282,7 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
         taskLists,
         tasks,
         calendarEvents,
+        goals,
       },
       null,
       2
@@ -1962,73 +2295,111 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
     taskLists,
     tasks,
     calendarEvents,
+    goals,
   ]);
 
   const importPlaintextBackup = useCallback(
     async (rawJson: string): Promise<number> => {
-      const parsed = JSON.parse(rawJson) as {
-        purchases?: PurchaseRecord[];
-        subscriptions?: SubscriptionRecord[];
-        habits?: HabitRecord[];
-        taskLists?: TaskListRecord[];
-        tasks?: TaskRecord[];
-        calendarEvents?: CalendarEventRecord[];
-        preferences?: HubPreferences;
+      let parsed: {
+        format?: string;
+        purchases?: unknown[];
+        subscriptions?: unknown[];
+        habits?: unknown[];
+        taskLists?: unknown[];
+        tasks?: unknown[];
+        calendarEvents?: unknown[];
+        goals?: unknown[];
+        preferences?: unknown;
       };
+      try {
+        parsed = JSON.parse(rawJson);
+      } catch {
+        throw new Error('This file is not valid JSON.');
+      }
+      if (!parsed || typeof parsed !== 'object') {
+        throw new Error('Unrecognized backup file.');
+      }
+      if (parsed.format === 'encrypted-vault-v1') {
+        throw new Error(
+          'This is an encrypted vault snapshot. Import the "Readable JSON" export instead.'
+        );
+      }
+
+      const ID_RE = /^[a-zA-Z0-9_-]{1,128}$/;
+      const isRecord = (v: unknown, requiredKey: string): v is { id: string } =>
+        !!v &&
+        typeof v === 'object' &&
+        typeof (v as { id?: unknown }).id === 'string' &&
+        ID_RE.test((v as { id: string }).id) &&
+        requiredKey in (v as object);
+
+      const groups: [VaultRecordKind, unknown[] | undefined, string][] = [
+        ['purchase', parsed.purchases, 'title'],
+        ['subscription', parsed.subscriptions, 'name'],
+        ['habit', parsed.habits, 'name'],
+        ['tasklist', parsed.taskLists, 'name'],
+        ['task', parsed.tasks, 'title'],
+        ['calendar', parsed.calendarEvents, 'title'],
+        ['goal', parsed.goals, 'title'],
+      ];
+
       let imported = 0;
-      if (Array.isArray(parsed.purchases)) {
-        for (const p of parsed.purchases) {
-          await persistEncryptedRecord('purchase', p, false);
+      let skipped = 0;
+      for (const [kind, items, requiredKey] of groups) {
+        if (!Array.isArray(items)) continue;
+        for (const item of items) {
+          if (!isRecord(item, requiredKey)) {
+            skipped++;
+            continue;
+          }
+          // Habits must always have a logs map to render safely
+          const payload =
+            kind === 'habit'
+              ? { logs: {}, targetPerDay: 1, ...(item as object), id: item.id }
+              : item;
+          await persistEncryptedRecord(kind, payload, false, {
+            deferRefresh: true,
+          });
           imported++;
         }
       }
-      if (Array.isArray(parsed.subscriptions)) {
-        for (const s of parsed.subscriptions) {
-          await persistEncryptedRecord('subscription', s, false);
-          imported++;
-        }
+      if (parsed.preferences && typeof parsed.preferences === 'object') {
+        await persistEncryptedRecord(
+          'prefs',
+          {
+            ...DEFAULT_PREFERENCES,
+            ...(parsed.preferences as Partial<HubPreferences>),
+            id: 'prefs_default' as const,
+            updatedAt: Date.now(),
+          },
+          false,
+          { deferRefresh: true }
+        );
       }
-      if (Array.isArray(parsed.habits)) {
-        for (const h of parsed.habits) {
-          await persistEncryptedRecord('habit', h, false);
-          imported++;
-        }
+      await refreshAfterBatch();
+      if (imported === 0 && skipped === 0 && !parsed.preferences) {
+        throw new Error('No MMV-HUB records found in this file.');
       }
-      if (Array.isArray(parsed.taskLists)) {
-        for (const l of parsed.taskLists) {
-          await persistEncryptedRecord('tasklist', l, false);
-          imported++;
-        }
-      }
-      if (Array.isArray(parsed.tasks)) {
-        for (const t of parsed.tasks) {
-          await persistEncryptedRecord('task', t, false);
-          imported++;
-        }
-      }
-      if (Array.isArray(parsed.calendarEvents)) {
-        for (const c of parsed.calendarEvents) {
-          await persistEncryptedRecord('calendar', c, false);
-          imported++;
-        }
-      }
-      if (parsed.preferences) {
-        await persistEncryptedRecord('prefs', parsed.preferences, false);
+      if (skipped > 0) {
+        showSnackbar(`Skipped ${skipped} invalid record${skipped === 1 ? '' : 's'}`);
       }
       return imported;
     },
-    [persistEncryptedRecord]
+    [persistEncryptedRecord, refreshAfterBatch, showSnackbar]
   );
 
   const wipeLocalVault = useCallback(async () => {
     activeKeyRef.current = null;
     await clearAllLocalVaultData();
+    clearNotificationSentLog();
+    updateAppBadge(0);
     setPurchases([]);
     setSubscriptions([]);
     setHabits([]);
     setTasks([]);
     setTaskLists([]);
     setCalendarEvents([]);
+    setGoals([]);
     setPreferences(DEFAULT_PREFERENCES);
     setVaultMeta(null);
     setPhase('needs-setup');
@@ -2052,6 +2423,7 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
       tasks,
       taskLists,
       calendarEvents,
+      goals,
       preferences,
       snackbar,
       dismissSnackbar,
@@ -2096,6 +2468,11 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
       clearCompletedTasks,
       saveCalendarEvent,
       deleteCalendarEvent,
+      saveGoal,
+      deleteGoal,
+      setGoalStatus,
+      adjustGoalValue,
+      toggleGoalMilestone,
       updatePreferences,
       sendTestNotification,
       runReminderSweepNow,
@@ -2121,6 +2498,7 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
       tasks,
       taskLists,
       calendarEvents,
+      goals,
       preferences,
       snackbar,
       dismissSnackbar,
@@ -2165,6 +2543,11 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
       clearCompletedTasks,
       saveCalendarEvent,
       deleteCalendarEvent,
+      saveGoal,
+      deleteGoal,
+      setGoalStatus,
+      adjustGoalValue,
+      toggleGoalMilestone,
       updatePreferences,
       sendTestNotification,
       runReminderSweepNow,

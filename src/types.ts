@@ -273,6 +273,48 @@ export type AccentTheme =
 
 export type UiDensity = 'comfortable' | 'compact';
 
+export type NotificationDeliveryMode = 'individual' | 'digest';
+
+/** User-tunable notification behaviour (all fields optional; see resolveNotificationConfig). */
+export interface NotificationConfig {
+  deliveryMode?: NotificationDeliveryMode;
+  maxPerBatch?: number; // individual alerts before summarizing (1..10)
+  sound?: boolean;
+  taskLeadMinutes?: number; // alert N minutes before a timed task
+  includeOverdueTasks?: boolean;
+  highPriorityTasksOnly?: boolean;
+  eventDefaultLeadMinutes?: number; // used when an event has no own offset
+  renewalLeadDays?: number; // fallback when a subscription has no reminderDays
+  notifyReturnWindows?: boolean;
+  returnWindowDays?: number;
+  urgentBypassQuietHours?: boolean;
+  activeWeekdays?: number[]; // 0=Sun..6=Sat; empty/undefined = every day
+  eveningSummaryEnabled?: boolean;
+  eveningSummaryTime?: string; // HH:mm
+  bellHorizonDays?: number; // Upcoming range in the bell popover
+  showBadge?: boolean; // bell + app-icon badge count
+}
+
+export type HomeWidgetId =
+  | 'reminders'
+  | 'snapshot'
+  | 'quickActions'
+  | 'focus'
+  | 'goals'
+  | 'schedule'
+  | 'streaks'
+  | 'countdowns'
+  | 'wallet'
+  | 'note';
+
+export type HomeWidgetSize = 'half' | 'full';
+
+export interface HomeWidgetConfig {
+  id: HomeWidgetId;
+  visible: boolean;
+  size: HomeWidgetSize;
+}
+
 export interface HubPreferences {
   id: 'prefs_default';
   currency: string;
@@ -294,6 +336,8 @@ export interface HubPreferences {
   notifyGoals?: boolean;
   notifySubscriptions?: boolean;
   notifyEvents?: boolean;
+  notificationConfig?: NotificationConfig;
+  homeWidgets?: HomeWidgetConfig[];
   categoryBudgets?: Partial<Record<PurchaseCategory, number>>;
   scratchpad?: string;
   focusSessionsToday?: {

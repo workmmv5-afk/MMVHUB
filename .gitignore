@@ -8,3 +8,11 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Compiled Android packages & signing keys (never commit)
+*.apk
+*.aab
+*.jks
+*.keystore
+*.p12
+

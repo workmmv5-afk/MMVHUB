@@ -3,6 +3,10 @@ import { Copy, Plus, Star, Trash2, X } from 'lucide-react';
 import type {
   CalendarColor,
   CalendarEventRecord,
+  GoalMilestone,
+  GoalProgressMode,
+  GoalRecord,
+  GoalStatus,
   HabitCadence,
   HabitCustomMode,
   HabitMode,
@@ -115,6 +119,43 @@ const SheetShell: React.FC<SheetShellProps> = ({
         </div>
         {children}
       </div>
+    </div>
+  );
+};
+
+/* ---------------- Shared: Linked Goal picker ---------------- */
+
+const GoalLinkSelect: React.FC<{
+  id: string;
+  goals: GoalRecord[];
+  value: string;
+  onChange: (goalId: string) => void;
+}> = ({ id, goals, value, onChange }) => {
+  // Show active/paused goals, plus the currently linked one even if completed
+  const options = goals.filter((g) => g.status !== 'completed' || g.id === value);
+  if (options.length === 0) return null;
+  return (
+    <div className="space-y-1.5">
+      <label
+        htmlFor={id}
+        className="block text-xs font-medium text-[#444746] dark:text-[#C4C7C5]"
+      >
+        Linked Goal (optional)
+      </label>
+      <select
+        id={id}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full min-h-[44px] rounded-xl border border-[#747775] dark:border-[#8E918F] bg-white dark:bg-[#1E1F20] px-3 text-sm text-[#1F1F1F] dark:text-[#E3E3E3]"
+      >
+        <option value="">No goal</option>
+        {options.map((g) => (
+          <option key={g.id} value={g.id}>
+            {g.title}
+            {g.status !== 'active' ? ` (${g.status})` : ''}
+          </option>
+        ))}
+      </select>
     </div>
   );
 };
@@ -1104,6 +1145,7 @@ const WEEKDAY_CIRCLE_OPTIONS = [
 
 interface HabitModalProps {
   initial?: HabitRecord | null;
+  goals?: GoalRecord[];
   onSave: (
     data: Omit<HabitRecord, 'id' | 'createdAt' | 'updatedAt' | 'logs'> & {
       id?: string;
@@ -1115,11 +1157,13 @@ interface HabitModalProps {
 
 export const HabitModal: React.FC<HabitModalProps> = ({
   initial,
+  goals = [],
   onSave,
   onDelete,
   onClose,
 }) => {
   const [name, setName] = useState(initial?.name ?? '');
+  const [goalId, setGoalId] = useState(initial?.goalId ?? '');
   const [mode, setMode] = useState<HabitMode>(initial?.mode ?? 'build');
   const [cadence, setCadence] = useState<HabitCadence>(
     initial?.cadence ?? 'daily'
@@ -1229,6 +1273,7 @@ export const HabitModal: React.FC<HabitModalProps> = ({
         notes: notes.trim() || undefined,
         targetPerDay: target,
         unit: unit.trim() || undefined,
+        goalId: goalId || undefined,
       });
       onClose();
     } catch (err) {
@@ -1653,6 +1698,13 @@ export const HabitModal: React.FC<HabitModalProps> = ({
           />
         </div>
 
+        <GoalLinkSelect
+          id="hab-goal"
+          goals={goals}
+          value={goalId}
+          onChange={setGoalId}
+        />
+
         <div className="flex items-center gap-3 pt-2">
           {initial && onDelete && (
             <button
@@ -1690,6 +1742,8 @@ export const HabitModal: React.FC<HabitModalProps> = ({
 interface TaskModalProps {
   initial?: TaskRecord | null;
   defaultListId?: string;
+  defaultGoalId?: string;
+  goals?: GoalRecord[];
   taskLists: TaskListRecord[];
   onSave: (
     data: Omit<TaskRecord, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }
@@ -1701,12 +1755,17 @@ interface TaskModalProps {
 export const TaskModal: React.FC<TaskModalProps> = ({
   initial,
   defaultListId,
+  defaultGoalId,
+  goals = [],
   taskLists,
   onSave,
   onDelete,
   onClose,
 }) => {
   const [title, setTitle] = useState(initial?.title ?? '');
+  const [goalId, setGoalId] = useState(
+    initial ? (initial.goalId ?? '') : (defaultGoalId ?? '')
+  );
   const [listId, setListId] = useState(
     initial?.listId ?? defaultListId ?? DEFAULT_TASK_LIST_ID
   );
@@ -1767,6 +1826,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
           Number.isFinite(parsedEst) && parsedEst > 0 ? parsedEst : undefined,
         notes: notes.trim() || undefined,
         subtasks: subtasks.length > 0 ? subtasks : undefined,
+        goalId: goalId || undefined,
       });
       onClose();
     } catch (err) {
@@ -2059,6 +2119,13 @@ export const TaskModal: React.FC<TaskModalProps> = ({
           />
         </div>
 
+        <GoalLinkSelect
+          id="tsk-goal"
+          goals={goals}
+          value={goalId}
+          onChange={setGoalId}
+        />
+
         <div className="flex items-center gap-3 pt-2">
           {initial && onDelete && (
             <button
@@ -2122,7 +2189,7 @@ export const CalendarEventModal: React.FC<CalendarEventModalProps> = ({
     initial?.repeat ?? 'none'
   );
   const [reminderOffsetMinutes, setReminderOffsetMinutes] = useState<number>(
-    initial?.reminderOffsetMinutes ?? 0
+    initial?.reminderOffsetMinutes ?? -1
   );
   const [isMilestone, setIsMilestone] = useState(
     initial?.isMilestone ?? false
@@ -2150,7 +2217,8 @@ export const CalendarEventModal: React.FC<CalendarEventModalProps> = ({
         notes: notes.trim() || undefined,
         color,
         repeat,
-        reminderOffsetMinutes,
+        reminderOffsetMinutes:
+          reminderOffsetMinutes >= 0 ? reminderOffsetMinutes : undefined,
         isMilestone,
       });
       onClose();
@@ -2291,8 +2359,11 @@ export const CalendarEventModal: React.FC<CalendarEventModalProps> = ({
               onChange={(e) => setReminderOffsetMinutes(Number(e.target.value))}
               className="w-full min-h-[44px] rounded-xl border border-[#747775] dark:border-[#8E918F] bg-white dark:bg-[#1E1F20] px-3 text-sm text-[#1F1F1F] dark:text-[#E3E3E3]"
             >
+              <option value={-1}>Default (from Notification settings)</option>
               <option value={0}>At time of event</option>
+              <option value={5}>5 minutes before</option>
               <option value={10}>10 minutes before</option>
+              <option value={15}>15 minutes before</option>
               <option value={30}>30 minutes before</option>
               <option value={60}>1 hour before</option>
               <option value={1440}>1 day before</option>
@@ -2392,6 +2463,502 @@ export const CalendarEventModal: React.FC<CalendarEventModalProps> = ({
             className="flex-1 min-h-[44px] rounded-full hub-bg-accent text-sm font-medium hover:opacity-95 disabled:opacity-50"
           >
             {saving ? 'Encrypting...' : initial ? 'Save Event' : 'Save'}
+          </button>
+        </div>
+      </form>
+    </SheetShell>
+  );
+};
+
+/* ---------------- Goal Modal ---------------- */
+
+const GOAL_CATEGORY_SUGGESTIONS = [
+  'Personal',
+  'Health',
+  'Career',
+  'Finance',
+  'Learning',
+  'Relationships',
+  'Travel',
+  'Home',
+];
+
+const GOAL_PROGRESS_MODES: {
+  id: GoalProgressMode;
+  label: string;
+  hint: string;
+}[] = [
+  {
+    id: 'hybrid',
+    label: 'Combined',
+    hint: 'Average of number target, milestones and linked tasks',
+  },
+  { id: 'numeric', label: 'Number target', hint: 'e.g. 0 → 5,000 saved' },
+  { id: 'milestones', label: 'Milestones', hint: 'Check off steps' },
+  { id: 'linked', label: 'Linked tasks', hint: 'Completed tasks / habits linked to this goal' },
+];
+
+interface GoalModalProps {
+  initial?: GoalRecord | null;
+  onSave: (
+    data: Omit<GoalRecord, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }
+  ) => Promise<void>;
+  onDelete?: (id: string) => Promise<void>;
+  onClose: () => void;
+}
+
+const goalInputClass =
+  'w-full min-h-[44px] rounded-xl border border-[#747775] dark:border-[#8E918F] bg-transparent px-3.5 text-sm text-[#1F1F1F] dark:text-[#E3E3E3] focus:outline-none focus:border-[#0B57D0] dark:focus:border-[#A8C7FA]';
+const goalLabelClass =
+  'block text-xs font-medium text-[#444746] dark:text-[#C4C7C5]';
+
+export const GoalModal: React.FC<GoalModalProps> = ({
+  initial,
+  onSave,
+  onDelete,
+  onClose,
+}) => {
+  const [title, setTitle] = useState(initial?.title ?? '');
+  const [description, setDescription] = useState(initial?.description ?? '');
+  const [category, setCategory] = useState(initial?.category ?? 'Personal');
+  const [color, setColor] = useState<CalendarColor>(initial?.color ?? 'blue');
+  const [status, setStatus] = useState<GoalStatus>(initial?.status ?? 'active');
+  const [progressMode, setProgressMode] = useState<GoalProgressMode>(
+    initial?.progressMode ?? 'hybrid'
+  );
+  const [currentValue, setCurrentValue] = useState(
+    initial?.currentValue !== undefined ? String(initial.currentValue) : '0'
+  );
+  const [targetValue, setTargetValue] = useState(
+    initial?.targetValue !== undefined ? String(initial.targetValue) : ''
+  );
+  const [unit, setUnit] = useState(initial?.unit ?? '');
+  const [targetDate, setTargetDate] = useState(initial?.targetDate ?? '');
+  const [milestones, setMilestones] = useState<GoalMilestone[]>(
+    initial?.milestones ?? []
+  );
+  const [newMilestone, setNewMilestone] = useState('');
+  const [imageUrl, setImageUrl] = useState(initial?.imageUrl ?? '');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const showNumeric = progressMode === 'numeric' || progressMode === 'hybrid';
+  const showMilestones =
+    progressMode === 'milestones' || progressMode === 'hybrid';
+
+  const addMilestone = () => {
+    const text = newMilestone.trim();
+    if (!text) return;
+    setMilestones((prev) => [
+      ...prev,
+      {
+        id: `ms_${Date.now()}_${Math.random().toString(16).slice(2, 6)}`,
+        title: text,
+        done: false,
+      },
+    ]);
+    setNewMilestone('');
+  };
+
+  const moveMilestone = (index: number, dir: -1 | 1) => {
+    setMilestones((prev) => {
+      const target = index + dir;
+      if (target < 0 || target >= prev.length) return prev;
+      const next = [...prev];
+      [next[index], next[target]] = [next[target], next[index]];
+      return next;
+    });
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    if (!title.trim()) {
+      setError('Enter a goal title.');
+      return;
+    }
+    const parsedTarget = parseFloat(targetValue);
+    const parsedCurrent = parseFloat(currentValue);
+    if (progressMode === 'numeric' && !(parsedTarget > 0)) {
+      setError('Enter a target number greater than 0.');
+      return;
+    }
+    if (progressMode === 'milestones' && milestones.length === 0) {
+      setError('Add at least one milestone.');
+      return;
+    }
+    const cleanUrl = imageUrl.trim();
+    if (cleanUrl && !/^https?:\/\//i.test(cleanUrl)) {
+      setError('Image link must start with https://');
+      return;
+    }
+    setSaving(true);
+    try {
+      await onSave({
+        id: initial?.id,
+        title: title.trim(),
+        description: description.trim() || undefined,
+        category: category.trim() || 'Personal',
+        color,
+        status,
+        progressMode,
+        targetValue: showNumeric && parsedTarget > 0 ? parsedTarget : undefined,
+        currentValue:
+          showNumeric && parsedTarget > 0
+            ? Math.max(0, Number.isFinite(parsedCurrent) ? parsedCurrent : 0)
+            : undefined,
+        unit: showNumeric ? unit.trim() || undefined : undefined,
+        targetDate: targetDate || undefined,
+        milestones: showMilestones && milestones.length > 0 ? milestones : undefined,
+        imageUrl: cleanUrl || undefined,
+        imageConfig: initial?.imageConfig,
+      });
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to save goal.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <SheetShell title={initial ? 'Edit Goal' : 'New Goal'} onClose={onClose}>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {error && (
+          <p className="text-xs text-[#B3261E] dark:text-[#F2B8B5]">{error}</p>
+        )}
+
+        <div className="space-y-1.5">
+          <label htmlFor="gol-title" className={goalLabelClass}>
+            Goal
+          </label>
+          <input
+            id="gol-title"
+            type="text"
+            maxLength={140}
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="e.g., Run a half marathon"
+            autoFocus
+            className={goalInputClass}
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <label htmlFor="gol-desc" className={goalLabelClass}>
+            Why it matters (optional)
+          </label>
+          <textarea
+            id="gol-desc"
+            rows={2}
+            maxLength={2000}
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Your motivation, plan, or definition of done"
+            className="w-full rounded-xl border border-[#747775] dark:border-[#8E918F] bg-transparent p-3 text-sm text-[#1F1F1F] dark:text-[#E3E3E3]"
+          />
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+          <div className="space-y-1.5">
+            <label htmlFor="gol-cat" className={goalLabelClass}>
+              Category
+            </label>
+            <input
+              id="gol-cat"
+              type="text"
+              list="gol-cat-list"
+              maxLength={40}
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              className={goalInputClass}
+            />
+            <datalist id="gol-cat-list">
+              {GOAL_CATEGORY_SUGGESTIONS.map((c) => (
+                <option key={c} value={c} />
+              ))}
+            </datalist>
+          </div>
+          <div className="space-y-1.5">
+            <label htmlFor="gol-date" className={goalLabelClass}>
+              Target date (optional)
+            </label>
+            <input
+              id="gol-date"
+              type="date"
+              value={targetDate}
+              onChange={(e) => setTargetDate(e.target.value)}
+              className={`${goalInputClass} font-mono`}
+            />
+          </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <span className={goalLabelClass}>Color</span>
+          <div className="flex items-center gap-2">
+            {CALENDAR_COLORS.map((c) => (
+              <button
+                key={c.id}
+                type="button"
+                aria-label={c.label}
+                aria-pressed={color === c.id}
+                onClick={() => setColor(c.id)}
+                className={`w-8 h-8 rounded-full ${c.swatchClass} ${
+                  color === c.id
+                    ? 'ring-2 ring-offset-2 ring-[#1F1F1F] dark:ring-[#E3E3E3] dark:ring-offset-[#1E1F20]'
+                    : ''
+                }`}
+              />
+            ))}
+          </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <span className={goalLabelClass}>Measure progress by</span>
+          <div className="grid grid-cols-2 gap-2">
+            {GOAL_PROGRESS_MODES.map((m) => (
+              <button
+                key={m.id}
+                type="button"
+                aria-pressed={progressMode === m.id}
+                onClick={() => setProgressMode(m.id)}
+                className={`min-h-[52px] px-3 py-2 rounded-xl border text-left transition-colors ${
+                  progressMode === m.id
+                    ? 'hub-bg-soft border-transparent'
+                    : 'border-[#DADCE0] dark:border-[#444746] text-[#444746] dark:text-[#C4C7C5]'
+                }`}
+              >
+                <span className="block text-xs font-semibold">{m.label}</span>
+                <span className="block text-[11px] opacity-80 leading-snug">
+                  {m.hint}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {showNumeric && (
+          <div className="grid grid-cols-3 gap-3">
+            <div className="space-y-1.5">
+              <label htmlFor="gol-cur" className={goalLabelClass}>
+                Current
+              </label>
+              <input
+                id="gol-cur"
+                type="number"
+                min="0"
+                step="any"
+                value={currentValue}
+                onChange={(e) => setCurrentValue(e.target.value)}
+                className={`${goalInputClass} font-mono`}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label htmlFor="gol-target" className={goalLabelClass}>
+                Target{progressMode === 'hybrid' ? ' (opt.)' : ''}
+              </label>
+              <input
+                id="gol-target"
+                type="number"
+                min="0"
+                step="any"
+                value={targetValue}
+                onChange={(e) => setTargetValue(e.target.value)}
+                placeholder="e.g. 100"
+                className={`${goalInputClass} font-mono`}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label htmlFor="gol-unit" className={goalLabelClass}>
+                Unit
+              </label>
+              <input
+                id="gol-unit"
+                type="text"
+                maxLength={20}
+                value={unit}
+                onChange={(e) => setUnit(e.target.value)}
+                placeholder="km, $, books"
+                className={goalInputClass}
+              />
+            </div>
+          </div>
+        )}
+
+        {showMilestones && (
+          <div className="space-y-2">
+            <span className={goalLabelClass}>
+              Milestones ({milestones.filter((m) => m.done).length}/
+              {milestones.length})
+            </span>
+            {milestones.length > 0 && (
+              <div className="space-y-1.5">
+                {milestones.map((m, i) => (
+                  <div
+                    key={m.id}
+                    className="flex items-center gap-2 rounded-xl border border-[#E1E3E1] dark:border-[#444746] px-2.5 py-1"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={m.done}
+                      aria-label={`Mark ${m.title} done`}
+                      onChange={() =>
+                        setMilestones((prev) =>
+                          prev.map((x) =>
+                            x.id === m.id ? { ...x, done: !x.done } : x
+                          )
+                        )
+                      }
+                      className="w-4 h-4 accent-[#0B57D0] dark:accent-[#A8C7FA] shrink-0"
+                    />
+                    <input
+                      type="text"
+                      value={m.title}
+                      maxLength={140}
+                      aria-label="Milestone title"
+                      onChange={(e) =>
+                        setMilestones((prev) =>
+                          prev.map((x) =>
+                            x.id === m.id ? { ...x, title: e.target.value } : x
+                          )
+                        )
+                      }
+                      className={`flex-1 min-w-0 min-h-[36px] bg-transparent text-sm focus:outline-none ${
+                        m.done
+                          ? 'line-through text-[#747775]'
+                          : 'text-[#1F1F1F] dark:text-[#E3E3E3]'
+                      }`}
+                    />
+                    <input
+                      type="date"
+                      value={m.targetDate ?? ''}
+                      aria-label="Milestone date"
+                      onChange={(e) =>
+                        setMilestones((prev) =>
+                          prev.map((x) =>
+                            x.id === m.id
+                              ? { ...x, targetDate: e.target.value || undefined }
+                              : x
+                          )
+                        )
+                      }
+                      className="hidden sm:block w-[128px] min-h-[32px] bg-transparent font-mono text-[11px] text-[#444746] dark:text-[#C4C7C5]"
+                    />
+                    <button
+                      type="button"
+                      aria-label="Move milestone up"
+                      disabled={i === 0}
+                      onClick={() => moveMilestone(i, -1)}
+                      className="min-h-[32px] min-w-[24px] text-[#747775] disabled:opacity-30"
+                    >
+                      ↑
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="Remove milestone"
+                      onClick={() =>
+                        setMilestones((prev) => prev.filter((x) => x.id !== m.id))
+                      }
+                      className="min-h-[32px] min-w-[32px] flex items-center justify-center text-[#747775] hover:text-[#B3261E]"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={newMilestone}
+                onChange={(e) => setNewMilestone(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    addMilestone();
+                  }
+                }}
+                placeholder="Add milestone..."
+                className={`flex-1 ${goalInputClass}`}
+              />
+              <button
+                type="button"
+                onClick={addMilestone}
+                aria-label="Add milestone"
+                className="min-h-[44px] min-w-[44px] rounded-xl bg-[#E9EEF6] dark:bg-[#282A2C] flex items-center justify-center text-[#1F1F1F] dark:text-[#E3E3E3]"
+              >
+                <Plus className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {progressMode === 'linked' && (
+          <p className="text-xs text-[#444746] dark:text-[#C4C7C5] rounded-xl bg-[#F0F4F9] dark:bg-[#282A2C] px-3 py-2">
+            Link tasks or habits to this goal from their editor (“Linked Goal”),
+            or use “Add task” on the goal card.
+          </p>
+        )}
+
+        <div className="space-y-1.5">
+          <label htmlFor="gol-img" className={goalLabelClass}>
+            Cover image link (optional)
+          </label>
+          <input
+            id="gol-img"
+            type="url"
+            inputMode="url"
+            value={imageUrl}
+            onChange={(e) => setImageUrl(e.target.value)}
+            placeholder="https://…"
+            className={goalInputClass}
+          />
+        </div>
+
+        {initial && (
+          <div className="space-y-1.5">
+            <span className={goalLabelClass}>Status</span>
+            <div className="grid grid-cols-3 p-1 rounded-full bg-[#F1F3F4] dark:bg-[#282A2C]">
+              {(['active', 'paused', 'completed'] as const).map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  aria-pressed={status === s}
+                  onClick={() => setStatus(s)}
+                  className={`min-h-[34px] rounded-full text-xs font-medium capitalize transition-colors ${
+                    status === s
+                      ? 'bg-white dark:bg-[#1E1F20] text-[#202124] dark:text-[#E8EAED] shadow-2xs'
+                      : 'text-[#5F6368] dark:text-[#9AA0A6]'
+                  }`}
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="flex items-center gap-3 pt-2">
+          {initial && onDelete && (
+            <button
+              type="button"
+              disabled={saving}
+              onClick={async () => {
+                setSaving(true);
+                await onDelete(initial.id);
+                onClose();
+              }}
+              className="min-h-[44px] px-4 rounded-full border border-[#F2B8B5] dark:border-[#8C1D18] text-[#B3261E] dark:text-[#F2B8B5] text-sm font-medium hover:bg-[#FCE8E6] dark:hover:bg-[#601410]/40"
+            >
+              Delete
+            </button>
+          )}
+          <button
+            type="submit"
+            disabled={saving}
+            className="flex-1 min-h-[44px] rounded-full hub-bg-accent text-sm font-medium hover:opacity-95 disabled:opacity-50"
+          >
+            {saving ? 'Encrypting...' : initial ? 'Save Goal' : 'Create Goal'}
           </button>
         </div>
       </form>

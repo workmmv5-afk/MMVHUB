@@ -115,16 +115,28 @@ export function advanceDateByCycle(
   if (cycle === 'none') return dateISO;
   const [y, m, d] = dateISO.split('-').map(Number);
   const dt = new Date(y, m - 1, d);
+  // Month arithmetic clamps to the last valid day (Jan 31 + 1 month = Feb 28/29,
+  // not Mar 3) so renewals and repeating tasks never skip a month.
+  const addMonthsClamped = (months: number) => {
+    const target = new Date(dt.getFullYear(), dt.getMonth() + months, 1);
+    const lastDay = new Date(
+      target.getFullYear(),
+      target.getMonth() + 1,
+      0
+    ).getDate();
+    target.setDate(Math.min(d, lastDay));
+    dt.setTime(target.getTime());
+  };
   if (cycle === 'daily') {
     dt.setDate(dt.getDate() + 1);
   } else if (cycle === 'weekly') {
     dt.setDate(dt.getDate() + 7);
   } else if (cycle === 'monthly') {
-    dt.setMonth(dt.getMonth() + 1);
+    addMonthsClamped(1);
   } else if (cycle === 'quarterly') {
-    dt.setMonth(dt.getMonth() + 3);
+    addMonthsClamped(3);
   } else if (cycle === 'yearly') {
-    dt.setFullYear(dt.getFullYear() + 1);
+    addMonthsClamped(12);
   }
   const ny = dt.getFullYear();
   const nm = String(dt.getMonth() + 1).padStart(2, '0');
@@ -150,7 +162,25 @@ export function getDaysUntil(dateISO: string, fromISO = getTodayISO()): number {
   return Math.round((t2 - t1) / 86400000);
 }
 
-const WEEKDAY_NAMES_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+/** True when a (possibly recurring) calendar event lands on targetISO. */
+export function doesEventOccurOnDate(
+  ev: Pick<CalendarEventRecord, 'date' | 'repeat'>,
+  targetISO: string
+): boolean {
+  if (ev.date === targetISO) return true;
+  if (!ev.repeat || ev.repeat === 'none' || targetISO < ev.date) return false;
+  const [sy, sm, sd] = ev.date.split('-').map(Number);
+  const [ty, tm, td] = targetISO.split('-').map(Number);
+  if (ev.repeat === 'daily') return true;
+  if (ev.repeat === 'weekly') {
+    return new Date(sy, sm - 1, sd).getDay() === new Date(ty, tm - 1, td).getDay();
+  }
+  if (ev.repeat === 'monthly') return sd === td;
+  if (ev.repeat === 'yearly') return sm === tm && sd === td;
+  return false;
+}
+
+const WEEKDAY_NAMES_SHORT =['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 function parseLocalDate(dateISO: string): Date {
   const [y, m, d] = dateISO.split('-').map(Number);

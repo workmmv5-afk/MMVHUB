@@ -52,6 +52,12 @@
   - **Calendar Backfill**: Full 42-cell monthly grid (honors Sunday/Monday week start) to mark or backfill past days per habit or all habits together.
 - **Flexible Recurrence Rules**: `daily`, `weekdays`, `weekly`, `monthly` (specific dates or end-of-month `-1`), or `custom` (chosen weekdays or `every N days` interval).
 
+### 4b. Goals (`GoalsView`)
+- Long-term goals measured by a **number target** (e.g. 0 → 5,000 saved), **milestones**, **linked tasks & habits**, or a **combined** average.
+- Inline `+ / −` and "Log amount" for numeric goals, tap-to-check milestones, pace indicator vs. target date (On track / Behind), pause / complete / reopen with undo.
+- Link any task or habit from its editor ("Linked Goal") or via **Add task** on a goal card; deleting a goal unlinks them (undo restores links).
+- Goals widget on Home, Goals reminders toggle, Ctrl+K search, included in readable JSON backups.
+
 ### 5. Tasks (`TasksView`)
 - **Google Tasks Clone**: Multiple custom task lists (`My Tasks`, `Starred`, custom lists), inline composer with Today / Tomorrow / Next week quick chips, due times, and repeating task auto-generation upon completion.
 - **List & Board Modes**: Toggle between focused single-list view and multi-list Kanban board on desktop.
@@ -69,6 +75,8 @@
   - **Interface Density** (`Comfortable` / `Compact`), **Calendar Week Start** (`Sunday` / `Monday`), Currency symbol, Monthly Budget, Monthly Savings Goal, and Auto-Lock timeout.
 - **Notification Reminders**:
   - Granular switches for **Tasks**, **Habits**, **Renewals**, and **Events**, configurable **Daily Digest Time**, manual **Test Notification**, **Send Due Reminders Now**, and a live queue of currently due alerts.
+  - **Customize Notifications**: individual alerts vs. a single digest, max alerts per batch, chime, timed-task / default event / renewal / return-window lead times, high-priority-only and overdue filters, urgent alerts during quiet hours, active weekdays, optional **Evening Wrap-up**, bell "Upcoming" range (1–30 days), and missed-count badge on the bell + installed app icon. Tapping a notification focuses the app (`public/notification-handler.js`).
+- **Home Widgets**: show/hide, reorder, and set half/full width for every Home card (also available via the **Customize** button on Home). Extra optional widgets: **Quick Actions**, **Habit Streaks**, **Countdowns** (milestone events).
 - **Vault Security & Portable Backups**:
   - Rotate Master Passphrase (re-encrypts every record in IndexedDB + Firestore cleanly).
   - Export **Encrypted JSON** (zero-knowledge portable snapshot) or **Readable JSON**, import backups, or wipe local device storage.

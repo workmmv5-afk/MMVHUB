@@ -22,6 +22,7 @@ import {
   Search,
   Settings,
   Sun,
+  Target,
   WifiOff,
   X,
 } from 'lucide-react';
@@ -35,6 +36,7 @@ import { VaultGate } from './components/VaultGate';
 import { PWAInstallButton } from './components/PWAInstallButton';
 import {
   CalendarEventModal,
+  GoalModal,
   HabitModal,
   PurchaseModal,
   SubscriptionModal,
@@ -45,15 +47,19 @@ import { PurchasesView } from './views/PurchasesView';
 import { HabitsView } from './views/HabitsView';
 import { TasksView } from './views/TasksView';
 import { CalendarView } from './views/CalendarView';
-import { SettingsView } from './views/SettingsView';
+import { GoalsView } from './views/GoalsView';
+import { SettingsView, type SettingsSection } from './views/SettingsView';
 import {
   collectCategorizedReminders,
+  resolveNotificationConfig,
+  updateAppBadge,
   type CategorizedReminder,
 } from './lib/notifications';
 import { getTodayISO } from './lib/format';
 import type {
   AccentTheme,
   CalendarEventRecord,
+  GoalRecord,
   HabitRecord,
   NavTab,
   PurchaseRecord,
@@ -69,6 +75,7 @@ const NAV_ITEMS: {
   { id: 'home', label: 'Home', icon: Home },
   { id: 'purchases', label: 'Purchases', icon: Receipt },
   { id: 'habits', label: 'Habits', icon: Repeat },
+  { id: 'goals', label: 'Goals', icon: Target },
   { id: 'tasks', label: 'Tasks', icon: CheckSquare },
   { id: 'calendar', label: 'Calendar', icon: Calendar },
   { id: 'settings', label: 'Settings', icon: Settings },
@@ -129,6 +136,9 @@ const HubShell: React.FC = () => {
     tasks,
     taskLists,
     calendarEvents,
+    goals,
+    saveGoal,
+    deleteGoal,
     preferences,
     snackbar,
     dismissSnackbar,
@@ -160,9 +170,8 @@ const HubShell: React.FC = () => {
   >('purchases');
   const [purchasesSubSignal, setPurchasesSubSignal] = useState(0);
 
-  const [settingsSection, setSettingsSection] = useState<
-    'themes' | 'notifications' | null
-  >(null);
+  const [settingsSection, setSettingsSection] =
+    useState<SettingsSection | null>(null);
   const [settingsSignal, setSettingsSignal] = useState(0);
 
   const [remindersMenuOpen, setRemindersMenuOpen] = useState(false);
@@ -194,6 +203,12 @@ const HubShell: React.FC = () => {
     open: boolean;
     item?: TaskRecord | null;
     defaultListId?: string;
+    defaultGoalId?: string;
+  }>({ open: false });
+
+  const [goalModal, setGoalModal] = useState<{
+    open: boolean;
+    item?: GoalRecord | null;
   }>({ open: false });
 
   const [calendarModal, setCalendarModal] = useState<{
@@ -246,8 +261,19 @@ const HubShell: React.FC = () => {
       subscriptions,
       purchases,
       calendarEvents,
+      goals,
       preferences,
     });
+
+  const notifConfig = resolveNotificationConfig(preferences);
+  const badgeCount = missedReminders.length;
+
+  // Mirror the missed count onto the installed-PWA app icon badge
+  useEffect(() => {
+    updateAppBadge(
+      phase === 'unlocked' && notifConfig.showBadge ? badgeCount : 0
+    );
+  }, [phase, badgeCount, notifConfig.showBadge]);
 
   if (phase !== 'unlocked') {
     return <VaultGate />;
@@ -277,7 +303,7 @@ const HubShell: React.FC = () => {
     setActiveTab('purchases');
   };
 
-  const navigateSettingsSection = (section: 'themes' | 'notifications') => {
+  const navigateSettingsSection = (section: SettingsSection) => {
     closeTopMenus();
     setSettingsSection(section);
     setSettingsSignal((s) => s + 1);
@@ -301,6 +327,9 @@ const HubShell: React.FC = () => {
     } else if (item.kind === 'event') {
       const target = calendarEvents.find((ev) => ev.id === item.recordId);
       if (target) setCalendarModal({ open: true, item: target });
+    } else if (item.kind === 'goal') {
+      const target = goals.find((g) => g.id === item.recordId);
+      if (target) setGoalModal({ open: true, item: target });
     }
   };
 
@@ -364,6 +393,14 @@ const HubShell: React.FC = () => {
       tintClass: 'text-[#B06000] dark:text-[#FDD663]',
       active: activeTab === 'habits',
       onClick: () => navigateTab('habits'),
+    },
+    {
+      id: 'goals',
+      label: 'Goals',
+      icon: Target,
+      tintClass: 'text-[#146C2E] dark:text-[#81C995]',
+      active: activeTab === 'goals',
+      onClick: () => navigateTab('goals'),
     },
     {
       id: 'tasks',
@@ -457,7 +494,11 @@ const HubShell: React.FC = () => {
               setAccountMenuOpen(false);
               setRemindersMenuOpen((o) => !o);
             }}
-            aria-label="Reminders"
+            aria-label={
+              notifConfig.showBadge && badgeCount > 0
+                ? `Reminders, ${badgeCount} missed`
+                : 'Reminders'
+            }
             aria-expanded={remindersMenuOpen}
             title="Reminders"
             className={`relative min-h-[40px] min-w-[40px] rounded-full flex items-center justify-center text-[#5F6368] dark:text-[#9AA0A6] hover:bg-[#F1F3F4] dark:hover:bg-[#282A2C] transition-colors ${
@@ -465,6 +506,14 @@ const HubShell: React.FC = () => {
             }`}
           >
             <Bell className="w-5 h-5" />
+            {notifConfig.showBadge && badgeCount > 0 && (
+              <span
+                aria-hidden="true"
+                className="absolute top-1 right-1 min-w-[16px] h-4 px-1 rounded-full bg-[#C5221F] dark:bg-[#F28B82] text-white dark:text-[#601410] text-[10px] font-semibold leading-4 text-center tabular-nums"
+              >
+                {badgeCount > 99 ? '99+' : badgeCount}
+              </span>
+            )}
           </button>
 
           <button
@@ -563,7 +612,7 @@ const HubShell: React.FC = () => {
                   </p>
                   <p className="text-xs text-[#5F6368] dark:text-[#9AA0A6] mt-1">
                     {remindersTab === 'upcoming'
-                      ? 'Scheduled tasks, habits, events, and renewals for the next 7 days appear here.'
+                      ? `Scheduled tasks, habits, events, and renewals for the next ${notifConfig.bellHorizonDays} day${notifConfig.bellHorizonDays === 1 ? '' : 's'} appear here.`
                       : 'You are caught up on overdue tasks, habits, events, and renewals.'}
                   </p>
                 </div>
@@ -950,6 +999,14 @@ const HubShell: React.FC = () => {
                   defaultDate: dateISO,
                 })
               }
+              onOpenNewTask={() =>
+                setTaskModal({
+                  open: true,
+                  item: null,
+                  defaultListId: DEFAULT_TASK_LIST_ID,
+                })
+              }
+              onOpenNewHabit={() => setHabitModal({ open: true, item: null })}
               onEditPurchase={(item) =>
                 setPurchaseModal({ open: true, item })
               }
@@ -983,6 +1040,22 @@ const HubShell: React.FC = () => {
           {activeTab === 'habits' && (
             <HabitsView
               onNewHabit={() => setHabitModal({ open: true, item: null })}
+              onEditHabit={(item) => setHabitModal({ open: true, item })}
+            />
+          )}
+          {activeTab === 'goals' && (
+            <GoalsView
+              onNewGoal={() => setGoalModal({ open: true, item: null })}
+              onEditGoal={(item) => setGoalModal({ open: true, item })}
+              onNewTaskForGoal={(goalId) =>
+                setTaskModal({
+                  open: true,
+                  item: null,
+                  defaultListId: DEFAULT_TASK_LIST_ID,
+                  defaultGoalId: goalId,
+                })
+              }
+              onEditTask={(item) => setTaskModal({ open: true, item })}
               onEditHabit={(item) => setHabitModal({ open: true, item })}
             />
           )}
@@ -1077,6 +1150,7 @@ const HubShell: React.FC = () => {
       {habitModal.open && (
         <HabitModal
           initial={habitModal.item}
+          goals={goals}
           onSave={saveHabit}
           onDelete={deleteHabit}
           onClose={() => setHabitModal({ open: false })}
@@ -1086,10 +1160,20 @@ const HubShell: React.FC = () => {
         <TaskModal
           initial={taskModal.item}
           defaultListId={taskModal.defaultListId}
+          defaultGoalId={taskModal.defaultGoalId}
+          goals={goals}
           taskLists={taskLists}
           onSave={saveTask}
           onDelete={deleteTask}
           onClose={() => setTaskModal({ open: false })}
+        />
+      )}
+      {goalModal.open && (
+        <GoalModal
+          initial={goalModal.item}
+          onSave={saveGoal}
+          onDelete={deleteGoal}
+          onClose={() => setGoalModal({ open: false })}
         />
       )}
       {calendarModal.open && (
@@ -1180,6 +1264,14 @@ const HubShell: React.FC = () => {
                     onSelect: () => setHabitModal({ open: true, item: null }),
                   });
                 }
+                if (!q || 'new goal'.includes(q) || 'goals'.includes(q)) {
+                  actions.push({
+                    id: 'act-goal',
+                    label: 'New Goal',
+                    meta: 'Quick create',
+                    onSelect: () => setGoalModal({ open: true, item: null }),
+                  });
+                }
                 if (!q || 'new event'.includes(q) || 'calendar'.includes(q)) {
                   actions.push({
                     id: 'act-cal',
@@ -1191,6 +1283,31 @@ const HubShell: React.FC = () => {
                         item: null,
                         defaultDate: getTodayISO(),
                       }),
+                  });
+                }
+
+                if (
+                  !q ||
+                  'customize widgets'.includes(q) ||
+                  'home layout'.includes(q)
+                ) {
+                  actions.push({
+                    id: 'act-widgets',
+                    label: 'Customize Home Widgets',
+                    meta: 'Settings',
+                    onSelect: () => navigateSettingsSection('widgets'),
+                  });
+                }
+                if (
+                  !q ||
+                  'notification settings'.includes(q) ||
+                  'reminders'.includes(q)
+                ) {
+                  actions.push({
+                    id: 'act-notif',
+                    label: 'Notification Settings',
+                    meta: 'Settings',
+                    onSelect: () => navigateSettingsSection('notifications'),
                   });
                 }
 
@@ -1251,6 +1368,19 @@ const HubShell: React.FC = () => {
                         meta: `Subscription · ${s.billingCycle} · ${s.nextBillingDate}`,
                         onSelect: () =>
                           setSubscriptionModal({ open: true, item: s }),
+                      });
+                    }
+                  }
+                  for (const g of goals) {
+                    if (
+                      g.title.toLowerCase().includes(q) ||
+                      g.category.toLowerCase().includes(q)
+                    ) {
+                      actions.push({
+                        id: `g-${g.id}`,
+                        label: g.title,
+                        meta: `Goal · ${g.category}${g.targetDate ? ` · ${g.targetDate}` : ''}`,
+                        onSelect: () => setGoalModal({ open: true, item: g }),
                       });
                     }
                   }

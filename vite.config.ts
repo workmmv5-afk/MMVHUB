@@ -52,6 +52,8 @@ export default defineConfig(() => {
           ],
         },
         workbox: {
+          // Adds notificationclick handling (focus/open app on reminder tap)
+          importScripts: ['notification-handler.js'],
           maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
           globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
           runtimeCaching: [

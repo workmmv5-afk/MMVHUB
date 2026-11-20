@@ -7,6 +7,7 @@ import {
   Database,
   Download,
   KeyRound,
+  LayoutGrid,
   Lock,
   Palette,
   RefreshCw,
@@ -17,6 +18,9 @@ import {
 } from 'lucide-react';
 import { useVault } from '../context/VaultContext';
 import { PWAInstallButton } from '../components/PWAInstallButton';
+import { NotificationCustomizer } from '../components/NotificationCustomizer';
+import { WidgetCustomizer } from '../components/WidgetCustomizer';
+import { getWidgetMeta, resolveHomeWidgets } from '../lib/homeWidgets';
 import {
   collectDueReminders,
   getNotificationPermission,
@@ -29,8 +33,10 @@ import type {
   UiDensity,
 } from '../types';
 
+export type SettingsSection = 'themes' | 'notifications' | 'widgets';
+
 interface SettingsViewProps {
-  focusSection?: 'themes' | 'notifications' | null;
+  focusSection?: SettingsSection | null;
   focusSignal?: number;
 }
 
@@ -153,6 +159,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const themesSectionRef = useRef<HTMLElement | null>(null);
   const notificationsSectionRef = useRef<HTMLElement | null>(null);
+  const widgetsSectionRef = useRef<HTMLElement | null>(null);
+  const [widgetCustomizerOpen, setWidgetCustomizerOpen] = useState(false);
+  const homeWidgets = useMemo(
+    () => resolveHomeWidgets(preferences),
+    [preferences]
+  );
 
   useEffect(() => {
     setCurrency(preferences.currency);
@@ -180,7 +192,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         ? themesSectionRef.current
         : focusSection === 'notifications'
           ? notificationsSectionRef.current
-          : null;
+          : focusSection === 'widgets'
+            ? widgetsSectionRef.current
+            : null;
     if (target) {
       target.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
@@ -309,8 +323,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     const a = document.createElement('a');
     a.href = url;
     a.download = filename;
+    document.body.appendChild(a);
     a.click();
-    URL.revokeObjectURL(url);
+    a.remove();
+    // Revoking synchronously can cancel the download in Firefox/Safari
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
   const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -749,6 +766,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     label: 'Events',
                     value: preferences.notifyEvents !== false,
                   },
+                  {
+                    key: 'notifyGoals',
+                    label: 'Goals',
+                    value: preferences.notifyGoals !== false,
+                  },
                 ] as const
               ).map((item) => (
                 <button
@@ -829,6 +851,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </div>
         </div>
 
+        <NotificationCustomizer
+          preferences={preferences}
+          updatePreferences={updatePreferences}
+        />
+
         {/* Manual Test & Dispatch Actions */}
         <div className="flex flex-wrap items-center gap-2.5 pt-2 border-t border-[#F0F4F9] dark:border-[#282A2C]">
           <button
@@ -892,6 +919,52 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             </div>
           </div>
         )}
+      </section>
+
+      {/* Home Widgets */}
+      <section
+        ref={widgetsSectionRef}
+        id="settings-widgets"
+        className="rounded-3xl border border-[#E1E3E1] dark:border-[#444746] bg-white dark:bg-[#1E1F20] p-5 sm:p-6 space-y-4 scroll-mt-20"
+      >
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 text-sm font-semibold text-[#1F1F1F] dark:text-[#E3E3E3]">
+              <LayoutGrid className="w-4 h-4 hub-text-accent" />
+              <span>Home Widgets</span>
+            </div>
+            <p className="text-xs text-[#444746] dark:text-[#C4C7C5]">
+              Choose which cards appear on Home, their order, and their width.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setWidgetCustomizerOpen(true)}
+            className="min-h-[42px] px-5 rounded-full hub-bg-accent text-xs font-medium shrink-0"
+          >
+            Customize Widgets
+          </button>
+        </div>
+        <ol className="flex flex-wrap gap-2 pt-3 border-t border-[#F0F4F9] dark:border-[#282A2C]">
+          {homeWidgets.map((w, i) => {
+            const meta = getWidgetMeta(w.id);
+            if (!meta) return null;
+            return (
+              <li
+                key={w.id}
+                className={`px-3 py-1.5 rounded-full text-[11px] font-medium border ${
+                  w.visible
+                    ? 'hub-bg-soft border-transparent'
+                    : 'border-dashed border-[#DADCE0] dark:border-[#444746] text-[#747775] line-through'
+                }`}
+              >
+                {w.visible ? `${i + 1}. ` : ''}
+                {meta.label}
+                {w.visible && meta.resizable ? ` · ${w.size}` : ''}
+              </li>
+            );
+          })}
+        </ol>
       </section>
 
       {/* Google Account & Cross-Platform Sync */}
@@ -1202,6 +1275,17 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         </div>
       </section>
       </div>
+
+      {widgetCustomizerOpen && (
+        <WidgetCustomizer
+          widgets={homeWidgets}
+          onSave={async (next) => {
+            await updatePreferences({ homeWidgets: next });
+            setStatusMessage('Home widget layout saved.');
+          }}
+          onClose={() => setWidgetCustomizerOpen(false)}
+        />
+      )}
     </div>
   );
 };

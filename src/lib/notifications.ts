@@ -3,11 +3,13 @@ import type {
   GoalRecord,
   HabitRecord,
   HubPreferences,
+  NotificationConfig,
   PurchaseRecord,
   SubscriptionRecord,
   TaskRecord,
 } from '../types';
 import {
+  doesEventOccurOnDate,
   formatCurrency,
   formatShortDate,
   formatTime12h,
@@ -43,6 +45,89 @@ export interface CategorizedRemindersResult {
 }
 
 const SENT_LOG_PREFIX = 'mmv_notif_sent_';
+const EVENING_LOG_KEY = 'mmv_notif_evening_sent';
+
+// ---------------------------------------------------------------------------
+// Notification customization
+// ---------------------------------------------------------------------------
+
+export const DEFAULT_NOTIFICATION_CONFIG: Required<NotificationConfig> = {
+  deliveryMode: 'individual',
+  maxPerBatch: 3,
+  sound: false,
+  taskLeadMinutes: 15,
+  includeOverdueTasks: true,
+  highPriorityTasksOnly: false,
+  eventDefaultLeadMinutes: 30,
+  renewalLeadDays: 3,
+  notifyReturnWindows: true,
+  returnWindowDays: 3,
+  urgentBypassQuietHours: false,
+  activeWeekdays: [0, 1, 2, 3, 4, 5, 6],
+  eveningSummaryEnabled: false,
+  eveningSummaryTime: '21:00',
+  bellHorizonDays: 7,
+  showBadge: true,
+};
+
+function clampInt(value: unknown, min: number, max: number, fallback: number) {
+  const n = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(max, Math.max(min, Math.round(n)));
+}
+
+/** Merge stored (possibly partial / older) config with safe defaults. */
+export function resolveNotificationConfig(
+  preferences: Pick<HubPreferences, 'notificationConfig'>
+): Required<NotificationConfig> {
+  const raw = preferences.notificationConfig ?? {};
+  const d = DEFAULT_NOTIFICATION_CONFIG;
+  const weekdays = Array.isArray(raw.activeWeekdays)
+    ? raw.activeWeekdays.filter((n) => Number.isInteger(n) && n >= 0 && n <= 6)
+    : d.activeWeekdays;
+  return {
+    deliveryMode: raw.deliveryMode === 'digest' ? 'digest' : 'individual',
+    maxPerBatch: clampInt(raw.maxPerBatch, 1, 10, d.maxPerBatch),
+    sound: raw.sound ?? d.sound,
+    taskLeadMinutes: clampInt(raw.taskLeadMinutes, 0, 1440, d.taskLeadMinutes),
+    includeOverdueTasks: raw.includeOverdueTasks ?? d.includeOverdueTasks,
+    highPriorityTasksOnly: raw.highPriorityTasksOnly ?? d.highPriorityTasksOnly,
+    eventDefaultLeadMinutes: clampInt(
+      raw.eventDefaultLeadMinutes,
+      0,
+      1440,
+      d.eventDefaultLeadMinutes
+    ),
+    renewalLeadDays: clampInt(raw.renewalLeadDays, 0, 30, d.renewalLeadDays),
+    notifyReturnWindows: raw.notifyReturnWindows ?? d.notifyReturnWindows,
+    returnWindowDays: clampInt(raw.returnWindowDays, 0, 30, d.returnWindowDays),
+    urgentBypassQuietHours:
+      raw.urgentBypassQuietHours ?? d.urgentBypassQuietHours,
+    activeWeekdays: weekdays,
+    eveningSummaryEnabled: raw.eveningSummaryEnabled ?? d.eveningSummaryEnabled,
+    eveningSummaryTime:
+      raw.eveningSummaryTime && /^\d{2}:\d{2}$/.test(raw.eveningSummaryTime)
+        ? raw.eveningSummaryTime
+        : d.eveningSummaryTime,
+    bellHorizonDays: clampInt(raw.bellHorizonDays, 1, 30, d.bellHorizonDays),
+    showBadge: raw.showBadge ?? d.showBadge,
+  };
+}
+
+export function isNotificationDayActive(
+  preferences: HubPreferences,
+  now = new Date()
+): boolean {
+  const { activeWeekdays } = resolveNotificationConfig(preferences);
+  // An empty selection is treated as "every day" so users can't silently
+  // disable all alerts by un-ticking every chip.
+  if (activeWeekdays.length === 0) return true;
+  return activeWeekdays.includes(now.getDay());
+}
+
+// ---------------------------------------------------------------------------
+// Permission + dispatch
+// ---------------------------------------------------------------------------
 
 export function getNotificationPermission():
   | NotificationPermission
@@ -84,6 +169,7 @@ export function playSubtleChime(): void {
     gain.connect(ctx.destination);
     osc.start();
     osc.stop(ctx.currentTime + 0.46);
+    osc.onended = () => void ctx.close();
   } catch {
     // Ignore audio context block before user gesture
   }
@@ -92,20 +178,27 @@ export function playSubtleChime(): void {
 export async function dispatchLocalNotification(
   title: string,
   body: string,
-  tag?: string
+  tag?: string,
+  options?: { silent?: boolean; requireInteraction?: boolean }
 ): Promise<boolean> {
   if (getNotificationPermission() !== 'granted') return false;
+
+  const opts: NotificationOptions = {
+    body,
+    tag,
+    icon: '/pwa-192x192.png',
+    badge: '/pwa-192x192.png',
+    silent: options?.silent,
+    requireInteraction: options?.requireInteraction,
+    // Read by public/notification-handler.js to focus/open the app on click
+    data: { url: '/' },
+  };
 
   try {
     if ('serviceWorker' in navigator) {
       const reg = await navigator.serviceWorker.getRegistration();
       if (reg && 'showNotification' in reg) {
-        await reg.showNotification(title, {
-          body,
-          tag,
-          icon: '/pwa-192x192.png',
-          badge: '/pwa-192x192.png',
-        });
+        await reg.showNotification(title, opts);
         return true;
       }
     }
@@ -114,14 +207,31 @@ export async function dispatchLocalNotification(
   }
 
   try {
-    new Notification(title, {
-      body,
-      tag,
-      icon: '/pwa-192x192.png',
-    });
+    const n = new Notification(title, opts);
+    n.onclick = () => {
+      window.focus();
+      n.close();
+    };
     return true;
   } catch {
     return false;
+  }
+}
+
+/** Sets/clears the PWA app-icon badge where supported (Chromium, installed PWAs). */
+export function updateAppBadge(count: number): void {
+  const nav = navigator as Navigator & {
+    setAppBadge?: (n?: number) => Promise<void>;
+    clearAppBadge?: () => Promise<void>;
+  };
+  try {
+    if (count > 0 && nav.setAppBadge) {
+      void nav.setAppBadge(count).catch(() => undefined);
+    } else if (nav.clearAppBadge) {
+      void nav.clearAppBadge().catch(() => undefined);
+    }
+  } catch {
+    // Unsupported
   }
 }
 
@@ -165,6 +275,17 @@ function isCardExpiringSoon(cardExpiry?: string, now = new Date()): 'expired' | 
   return null;
 }
 
+function formatLead(minutes: number): string {
+  if (minutes <= 0) return 'now';
+  if (minutes < 60) return `in ${minutes}m`;
+  if (minutes % 60 === 0) return `in ${minutes / 60}h`;
+  return `in ${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+}
+
+// ---------------------------------------------------------------------------
+// Due reminders (what fires as a system notification right now)
+// ---------------------------------------------------------------------------
+
 export function collectDueReminders(params: {
   tasks: TaskRecord[];
   habits: HabitRecord[];
@@ -185,7 +306,9 @@ export function collectDueReminders(params: {
     preferences,
     now = new Date(),
   } = params;
+  const cfg = resolveNotificationConfig(preferences);
   const todayISO = getTodayISO();
+  const tomorrowISO = getOffsetDateISO(1, todayISO);
   const currentMin = nowMinutesOfDay(now);
   const digestMin = parseHHMMToMinutes(preferences.dailyDigestTime ?? '09:00') ?? 540;
   const reminders: ReminderItem[] = [];
@@ -194,25 +317,31 @@ export function collectDueReminders(params: {
   if (preferences.notifyTasks !== false) {
     for (const t of tasks) {
       if (t.completed || !t.dueDate) continue;
+      if (cfg.highPriorityTasksOnly && t.priority !== 'high') continue;
       if (t.dueDate < todayISO) {
+        if (!cfg.includeOverdueTasks) continue;
         reminders.push({
           id: `task-overdue-${t.id}`,
           kind: 'task',
           title: `Overdue task: ${t.title}`,
-          body: `Was due ${t.dueDate}${t.area ? ` · ${t.area}` : ''}`,
+          body: `Was due ${formatShortDate(t.dueDate)}${t.area ? ` · ${t.area}` : ''}`,
           dueLabel: 'Overdue',
           urgent: true,
         });
       } else if (t.dueDate === todayISO) {
         const dueMin = parseHHMMToMinutes(t.dueTime);
-        const triggerMin = dueMin !== null ? Math.max(0, dueMin - 15) : digestMin;
+        const triggerMin =
+          dueMin !== null ? Math.max(0, dueMin - cfg.taskLeadMinutes) : digestMin;
         if (currentMin >= triggerMin) {
+          const minsLeft = dueMin !== null ? dueMin - currentMin : null;
           reminders.push({
             id: `task-today-${t.id}`,
             kind: 'task',
             title: `Task due today: ${t.title}`,
             body: t.dueTime
-              ? `Scheduled for ${formatTime12h(t.dueTime)}`
+              ? `Scheduled for ${formatTime12h(t.dueTime)}${
+                  minsLeft !== null && minsLeft > 0 ? ` (${formatLead(minsLeft)})` : ''
+                }`
               : `Priority: ${t.priority}`,
             dueLabel: t.dueTime ? formatTime12h(t.dueTime) : 'Today',
             urgent: t.priority === 'high',
@@ -227,8 +356,8 @@ export function collectDueReminders(params: {
     for (const s of subscriptions) {
       if (!s.active) continue;
       const days = getDaysUntil(s.nextBillingDate, todayISO);
-      const windowDays = s.reminderDays ?? 3;
-      if (days <= windowDays) {
+      const windowDays = s.reminderDays ?? cfg.renewalLeadDays;
+      if (days <= windowDays && currentMin >= digestMin) {
         const whenText =
           days < 0
             ? `Overdue by ${Math.abs(days)}d`
@@ -251,31 +380,36 @@ export function collectDueReminders(params: {
     }
   }
 
-  // 3. Calendar Events today (honors custom reminderOffsetMinutes)
+  // 3. Calendar Events (incl. recurring) honoring per-event or default offset
   if (preferences.notifyEvents !== false) {
     for (const ev of calendarEvents) {
-      const offsetMins = ev.reminderOffsetMinutes ?? 30;
-      const daysUntil = getDaysUntil(ev.date, todayISO);
-      if (daysUntil === 1 && offsetMins >= 1440 && currentMin >= digestMin) {
+      const offsetMins = ev.reminderOffsetMinutes ?? cfg.eventDefaultLeadMinutes;
+      if (
+        offsetMins >= 1440 &&
+        doesEventOccurOnDate(ev, tomorrowISO) &&
+        currentMin >= digestMin
+      ) {
         reminders.push({
-          id: `event-pre-${ev.id}`,
+          id: `event-pre-${ev.id}-${tomorrowISO}`,
           kind: 'event',
           title: `Tomorrow: ${ev.title}`,
           body: ev.allDay ? 'All day event' : `Starts ${formatTime12h(ev.startTime)}`,
           dueLabel: 'Tomorrow',
           urgent: false,
         });
-        continue;
       }
-      if (ev.date !== todayISO) continue;
+      if (!doesEventOccurOnDate(ev, todayISO)) continue;
       const startMin = parseHHMMToMinutes(ev.startTime);
+      const endMin = parseHHMMToMinutes(ev.endTime) ?? startMin;
+      // Don't alert for timed events that already ended
+      if (!ev.allDay && endMin !== null && currentMin > endMin) continue;
       const triggerMin =
         !ev.allDay && startMin !== null
-          ? Math.max(0, startMin - (offsetMins >= 1440 ? 30 : offsetMins))
+          ? Math.max(0, startMin - (offsetMins >= 1440 ? 0 : offsetMins))
           : digestMin;
       if (currentMin >= triggerMin) {
         reminders.push({
-          id: `event-today-${ev.id}`,
+          id: `event-today-${ev.id}-${todayISO}`,
           kind: 'event',
           title: `Event today: ${ev.title}`,
           body: ev.allDay
@@ -311,26 +445,28 @@ export function collectDueReminders(params: {
     }
   }
 
-  // 5. Purchase return-window deadlines within 3 days
-  for (const p of purchases) {
-    if (!p.returnByDate || p.isRefund || p.entryType === 'income') continue;
-    const daysLeft = getDaysUntil(p.returnByDate, todayISO);
-    if (daysLeft >= 0 && daysLeft <= 3) {
-      reminders.push({
-        id: `pur-return-${p.id}`,
-        kind: 'purchase',
-        title: `Return window: ${p.title}`,
-        body:
-          daysLeft === 0
-            ? 'Last day to return item'
-            : `Return deadline in ${daysLeft}d (${formatShortDate(p.returnByDate)})`,
-        dueLabel: daysLeft === 0 ? 'Today' : `${daysLeft}d left`,
-        urgent: daysLeft <= 1,
-      });
+  // 5. Purchase return-window deadlines
+  if (cfg.notifyReturnWindows) {
+    for (const p of purchases) {
+      if (!p.returnByDate || p.isRefund || p.entryType === 'income') continue;
+      const daysLeft = getDaysUntil(p.returnByDate, todayISO);
+      if (daysLeft >= 0 && daysLeft <= cfg.returnWindowDays) {
+        reminders.push({
+          id: `pur-return-${p.id}`,
+          kind: 'purchase',
+          title: `Return window: ${p.title}`,
+          body:
+            daysLeft === 0
+              ? 'Last day to return item'
+              : `Return deadline in ${daysLeft}d (${formatShortDate(p.returnByDate)})`,
+          dueLabel: daysLeft === 0 ? 'Today' : `${daysLeft}d left`,
+          urgent: daysLeft <= 1,
+        });
+      }
     }
   }
 
-  // 6. Goal target deadlines within 7 days or overdue
+  // 6. Goal target deadlines within 3 days or overdue
   if (preferences.notifyGoals !== false) {
     for (const g of goals) {
       if (g.status !== 'active' || !g.targetDate) continue;
@@ -361,28 +497,9 @@ export function collectDueReminders(params: {
   return reminders;
 }
 
-function doesEventOccurOnDate(
-  ev: CalendarEventRecord,
-  targetISO: string
-): boolean {
-  if (ev.date === targetISO) return true;
-  if (!ev.repeat || ev.repeat === 'none' || targetISO < ev.date) return false;
-  const [, sm, sd] = ev.date.split('-').map(Number);
-  const [ty, tm, td] = targetISO.split('-').map(Number);
-  if (ev.repeat === 'daily') return true;
-  if (ev.repeat === 'weekly') {
-    const startDt = new Date(
-      Number(ev.date.slice(0, 4)),
-      sm - 1,
-      sd
-    );
-    const targetDt = new Date(ty, tm - 1, td);
-    return startDt.getDay() === targetDt.getDay();
-  }
-  if (ev.repeat === 'monthly') return sd === td;
-  if (ev.repeat === 'yearly') return sm === tm && sd === td;
-  return false;
-}
+// ---------------------------------------------------------------------------
+// Bell popover (Upcoming / Missed)
+// ---------------------------------------------------------------------------
 
 export function collectCategorizedReminders(params: {
   tasks: TaskRecord[];
@@ -405,9 +522,11 @@ export function collectCategorizedReminders(params: {
     now = new Date(),
   } = params;
 
+  const cfg = resolveNotificationConfig(preferences);
+  const horizon = cfg.bellHorizonDays;
   const todayISO = getTodayISO();
   const tomorrowISO = getOffsetDateISO(1, todayISO);
-  const plus7ISO = getOffsetDateISO(7, todayISO);
+  const horizonISO = getOffsetDateISO(horizon, todayISO);
   const currentMin = nowMinutesOfDay(now);
   const digestTime = preferences.dailyDigestTime ?? '09:00';
   const digestMin = parseHHMMToMinutes(digestTime) ?? 540;
@@ -461,7 +580,7 @@ export function collectCategorizedReminders(params: {
             sortKey: `${t.dueDate}T${t.dueTime || '23:59'}`,
           });
         }
-      } else if (t.dueDate <= plus7ISO) {
+      } else if (t.dueDate <= horizonISO) {
         const dayStr =
           t.dueDate === tomorrowISO ? 'Tomorrow' : formatShortDate(t.dueDate);
         upcoming.push({
@@ -497,7 +616,7 @@ export function collectCategorizedReminders(params: {
           urgent: true,
           sortKey: `${s.nextBillingDate}T00:00`,
         });
-      } else if (days <= 14) {
+      } else if (days <= Math.max(horizon, 14)) {
         upcoming.push({
           id: `upcoming-sub-${s.id}`,
           recordId: s.id,
@@ -532,25 +651,27 @@ export function collectCategorizedReminders(params: {
   }
 
   // Purchase Return Deadlines
-  for (const p of purchases) {
-    if (!p.returnByDate || p.isRefund || p.entryType === 'income') continue;
-    const daysLeft = getDaysUntil(p.returnByDate, todayISO);
-    if (daysLeft >= 0 && daysLeft <= 7) {
-      upcoming.push({
-        id: `upcoming-return-${p.id}`,
-        recordId: p.id,
-        kind: 'purchase',
-        title: `Return window: ${p.title}`,
-        detail: `${formatCurrency(p.amount, preferences.currency)} · Return by`,
-        whenLabel:
-          daysLeft === 0
-            ? 'Today'
-            : daysLeft === 1
-              ? 'Tomorrow'
-              : `${formatShortDate(p.returnByDate)} (${daysLeft}d)`,
-        urgent: daysLeft <= 1,
-        sortKey: `${p.returnByDate}T10:00`,
-      });
+  if (cfg.notifyReturnWindows) {
+    for (const p of purchases) {
+      if (!p.returnByDate || p.isRefund || p.entryType === 'income') continue;
+      const daysLeft = getDaysUntil(p.returnByDate, todayISO);
+      if (daysLeft >= 0 && daysLeft <= Math.max(horizon, cfg.returnWindowDays)) {
+        upcoming.push({
+          id: `upcoming-return-${p.id}`,
+          recordId: p.id,
+          kind: 'purchase',
+          title: `Return window: ${p.title}`,
+          detail: `${formatCurrency(p.amount, preferences.currency)} · Return by`,
+          whenLabel:
+            daysLeft === 0
+              ? 'Today'
+              : daysLeft === 1
+                ? 'Tomorrow'
+                : `${formatShortDate(p.returnByDate)} (${daysLeft}d)`,
+          urgent: daysLeft <= 1,
+          sortKey: `${p.returnByDate}T10:00`,
+        });
+      }
     }
   }
 
@@ -599,9 +720,9 @@ export function collectCategorizedReminders(params: {
     }
   }
 
-  // 4. Calendar Events (today + next 7 days, including recurring)
+  // 4. Calendar Events (today + horizon, including recurring)
   if (preferences.notifyEvents !== false) {
-    for (let offset = 0; offset <= 7; offset++) {
+    for (let offset = 0; offset <= horizon; offset++) {
       const dateISO = getOffsetDateISO(offset, todayISO);
       for (const ev of calendarEvents) {
         if (!doesEventOccurOnDate(ev, dateISO)) continue;
@@ -673,7 +794,7 @@ export function collectCategorizedReminders(params: {
           urgent: true,
           sortKey: `${g.targetDate}T09:00`,
         });
-      } else if (days <= 14) {
+      } else if (days <= Math.max(horizon, 14)) {
         upcoming.push({
           id: `upcoming-goal-${g.id}`,
           recordId: g.id,
@@ -702,6 +823,10 @@ export function collectCategorizedReminders(params: {
   return { missed, upcoming };
 }
 
+// ---------------------------------------------------------------------------
+// Sent log (dedupe per day)
+// ---------------------------------------------------------------------------
+
 function getSentSetForToday(todayISO: string): Set<string> {
   try {
     const raw = localStorage.getItem(`${SENT_LOG_PREFIX}${todayISO}`);
@@ -715,13 +840,15 @@ function getSentSetForToday(todayISO: string): Set<string> {
 
 function saveSentSetForToday(todayISO: string, set: Set<string>): void {
   try {
-    // Cleanup older date keys to keep localStorage tidy
+    // Collect stale keys first; removing while iterating by index skips keys.
+    const stale: string[] = [];
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);
       if (k && k.startsWith(SENT_LOG_PREFIX) && k !== `${SENT_LOG_PREFIX}${todayISO}`) {
-        localStorage.removeItem(k);
+        stale.push(k);
       }
     }
+    for (const k of stale) localStorage.removeItem(k);
     localStorage.setItem(
       `${SENT_LOG_PREFIX}${todayISO}`,
       JSON.stringify(Array.from(set))
@@ -731,52 +858,175 @@ function saveSentSetForToday(todayISO: string, set: Set<string>): void {
   }
 }
 
+export function clearNotificationSentLog(): void {
+  try {
+    const keys: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && (k.startsWith(SENT_LOG_PREFIX) || k === EVENING_LOG_KEY)) keys.push(k);
+    }
+    for (const k of keys) localStorage.removeItem(k);
+  } catch {
+    // ignore
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Firing
+// ---------------------------------------------------------------------------
+
 export async function firePendingReminderNotifications(
   params: Parameters<typeof collectDueReminders>[0],
   options?: { forceAll?: boolean }
 ): Promise<number> {
   if (getNotificationPermission() !== 'granted') return 0;
-  if (!options?.forceAll && isWithinQuietHours(params.preferences, params.now)) {
+  const now = params.now ?? new Date();
+  const cfg = resolveNotificationConfig(params.preferences);
+
+  if (!options?.forceAll && !isNotificationDayActive(params.preferences, now)) {
     return 0;
   }
+  const quiet =
+    !options?.forceAll && isWithinQuietHours(params.preferences, now);
 
   const todayISO = getTodayISO();
-  const due = collectDueReminders(params);
+  let due = collectDueReminders({ ...params, now });
+  if (quiet) {
+    if (!cfg.urgentBypassQuietHours) return 0;
+    due = due.filter((r) => r.urgent);
+  }
   if (due.length === 0) return 0;
 
-  const sentSet = options?.forceAll ? new Set<string>() : getSentSetForToday(todayISO);
-  const unsent = due.filter((item) => !sentSet.has(item.id));
+  const sentSet = getSentSetForToday(todayISO);
+  const unsent = options?.forceAll
+    ? due
+    : due.filter((item) => !sentSet.has(item.id));
   if (unsent.length === 0) return 0;
 
-  // Dispatch up to 4 notifications at a time; summarize if more
-  const batch = unsent.slice(0, 3);
   let sentCount = 0;
+  const silent = !cfg.sound;
 
-  for (const item of batch) {
-    const ok = await dispatchLocalNotification(item.title, item.body, item.id);
-    if (ok) {
-      sentSet.add(item.id);
-      sentCount++;
-    }
-  }
-
-  if (unsent.length > 3) {
-    const remaining = unsent.slice(3);
+  if (cfg.deliveryMode === 'digest' && unsent.length > 1) {
+    const urgentCount = unsent.filter((r) => r.urgent).length;
     const ok = await dispatchLocalNotification(
-      `+${remaining.length} more MMV-HUB reminders`,
-      remaining.map((r) => r.title).join(' · '),
-      `mmv-summary-${todayISO}`
+      `MMV-HUB: ${unsent.length} reminders${urgentCount ? ` (${urgentCount} urgent)` : ''}`,
+      unsent
+        .slice(0, 6)
+        .map((r) => `• ${r.title}`)
+        .join('\n') + (unsent.length > 6 ? `\n+${unsent.length - 6} more` : ''),
+      `mmv-digest-${todayISO}`,
+      { silent }
     );
     if (ok) {
-      for (const item of remaining) {
+      for (const item of unsent) sentSet.add(item.id);
+      sentCount = 1;
+    }
+  } else {
+    const limit = cfg.maxPerBatch;
+    const batch = unsent.slice(0, limit);
+    for (const item of batch) {
+      const ok = await dispatchLocalNotification(item.title, item.body, item.id, {
+        silent,
+        requireInteraction: item.urgent,
+      });
+      if (ok) {
         sentSet.add(item.id);
+        sentCount++;
       }
-      sentCount++;
+    }
+
+    if (unsent.length > limit) {
+      const remaining = unsent.slice(limit);
+      const ok = await dispatchLocalNotification(
+        `+${remaining.length} more MMV-HUB reminders`,
+        remaining.map((r) => r.title).join(' · '),
+        `mmv-summary-${todayISO}`,
+        { silent }
+      );
+      if (ok) {
+        for (const item of remaining) sentSet.add(item.id);
+        sentCount++;
+      }
     }
   }
 
-  if (!options?.forceAll) {
-    saveSentSetForToday(todayISO, sentSet);
-  }
+  if (sentCount > 0 && cfg.sound) playSubtleChime();
+
+  // Always record what was delivered (also for manual "send now") so the
+  // automatic loop doesn't immediately re-send the same alerts.
+  saveSentSetForToday(todayISO, sentSet);
   return sentCount;
+}
+
+/** Optional once-a-day evening wrap-up. Returns true when it fired. */
+export async function maybeFireEveningSummary(params: {
+  tasks: TaskRecord[];
+  habits: HabitRecord[];
+  calendarEvents: CalendarEventRecord[];
+  preferences: HubPreferences;
+  now?: Date;
+}): Promise<boolean> {
+  const { tasks, habits, calendarEvents, preferences, now = new Date() } = params;
+  const cfg = resolveNotificationConfig(preferences);
+  if (!cfg.eveningSummaryEnabled) return false;
+  if (getNotificationPermission() !== 'granted') return false;
+  if (!isNotificationDayActive(preferences, now)) return false;
+
+  const triggerMin = parseHHMMToMinutes(cfg.eveningSummaryTime) ?? 1260;
+  if (nowMinutesOfDay(now) < triggerMin) return false;
+
+  const todayISO = getTodayISO();
+  try {
+    if (localStorage.getItem(EVENING_LOG_KEY) === todayISO) return false;
+  } catch {
+    // ignore
+  }
+
+  const tomorrowISO = getOffsetDateISO(1, todayISO);
+  const habitsLeft = habits.filter(
+    (h) =>
+      !h.archived &&
+      isHabitScheduledOnDate(h, todayISO) &&
+      (h.logs[todayISO] ?? 0) < h.targetPerDay
+  ).length;
+  const tasksLeft = tasks.filter(
+    (t) => !t.completed && t.dueDate && t.dueDate <= todayISO
+  ).length;
+  const tomorrowEvents = calendarEvents
+    .filter((ev) => doesEventOccurOnDate(ev, tomorrowISO))
+    .sort((a, b) => (a.startTime || '').localeCompare(b.startTime || ''));
+  const tomorrowTasks = tasks.filter(
+    (t) => !t.completed && t.dueDate === tomorrowISO
+  ).length;
+
+  const lines: string[] = [];
+  lines.push(
+    habitsLeft === 0 && tasksLeft === 0
+      ? 'All done for today — nice work.'
+      : `${habitsLeft} habit${habitsLeft === 1 ? '' : 's'} and ${tasksLeft} task${tasksLeft === 1 ? '' : 's'} still open today.`
+  );
+  if (tomorrowEvents.length > 0) {
+    const first = tomorrowEvents[0];
+    lines.push(
+      `Tomorrow: ${first.title}${first.allDay ? ' (all day)' : ` at ${formatTime12h(first.startTime)}`}`
+    );
+  }
+  if (tomorrowTasks > 0) {
+    lines.push(`${tomorrowTasks} task${tomorrowTasks === 1 ? '' : 's'} due tomorrow.`);
+  }
+
+  const ok = await dispatchLocalNotification(
+    'Evening wrap-up',
+    lines.join('\n'),
+    `mmv-evening-${todayISO}`,
+    { silent: !cfg.sound }
+  );
+  if (ok) {
+    try {
+      localStorage.setItem(EVENING_LOG_KEY, todayISO);
+    } catch {
+      // ignore
+    }
+  }
+  return ok;
 }
