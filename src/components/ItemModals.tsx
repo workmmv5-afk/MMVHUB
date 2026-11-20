@@ -35,6 +35,12 @@ import {
 import { DEFAULT_TASK_LIST_ID } from '../context/VaultContext';
 import { Markdown, toggleMarkdownCheck } from './Markdown';
 import { HabitInsights } from './HabitInsights';
+import {
+  PurchaseExtras,
+  SubscriptionExtras,
+  type PurchaseExtrasValue,
+  type SubscriptionExtrasValue,
+} from './FinanceExtras';
 
 const PURCHASE_CATEGORIES: PurchaseCategory[] = [
   'Groceries',
@@ -208,6 +214,14 @@ export const PurchaseModal: React.FC<PurchaseModalProps> = ({
     initial?.tags ? initial.tags.join(', ') : ''
   );
   const [recurring, setRecurring] = useState(initial?.recurring ?? false);
+  const [extras, setExtras] = useState<PurchaseExtrasValue>(() => ({
+    fxAmount: initial?.fxAmount,
+    fxCurrency: initial?.fxCurrency,
+    fxRate: initial?.fxRate,
+    splitWays: initial?.splitWays,
+    splitWith: initial?.splitWith,
+    receiptThumb: initial?.receiptThumb,
+  }));
   const [reimbursable, setReimbursable] = useState(
     initial?.reimbursable ?? false
   );
@@ -305,6 +319,9 @@ export const PurchaseModal: React.FC<PurchaseModalProps> = ({
         reimbursed:
           entryType === 'expense' && reimbursable ? reimbursed : false,
         tags: parsedTags.length > 0 ? parsedTags : undefined,
+        ...extras,
+        // Splitting a bill means others owe you → track as reimbursable
+        ...(entryType === 'expense' && (extras.splitWays ?? 1) > 1 ? { reimbursable: true } : {}),
       });
       onClose();
     } catch (err) {
@@ -568,6 +585,15 @@ export const PurchaseModal: React.FC<PurchaseModalProps> = ({
           />
         </div>
 
+        <PurchaseExtras
+          value={extras}
+          onChange={setExtras}
+          amount={parseFloat(amount) || 0}
+          onAmount={(v) => setAmount(String(v))}
+          currency={currency}
+          isExpense={entryType === 'expense'}
+        />
+
         {entryType === 'expense' && (
           <div className="space-y-1.5">
             <label
@@ -691,6 +717,7 @@ const REMINDER_DAY_OPTIONS = [0, 1, 3, 7] as const;
 
 interface SubscriptionModalProps {
   initial?: SubscriptionRecord | null;
+  recentPayments?: number[];
   currency: string;
   onSave: (
     data: Omit<SubscriptionRecord, 'id' | 'createdAt' | 'updatedAt'> & {
@@ -703,6 +730,7 @@ interface SubscriptionModalProps {
 
 export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
   initial,
+  recentPayments = [],
   currency,
   onSave,
   onDelete,
@@ -729,6 +757,13 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
   const [manageUrl, setManageUrl] = useState(initial?.manageUrl ?? '');
   const [cardLast4, setCardLast4] = useState(initial?.cardLast4 ?? '');
   const [cardExpiry, setCardExpiry] = useState(initial?.cardExpiry ?? '');
+  const [subExtras, setSubExtras] = useState<SubscriptionExtrasValue>(() => ({
+    seats: initial?.seats,
+    annualPrice: initial?.annualPrice,
+    variableAmount: initial?.variableAmount,
+    cancelledOn: initial?.cancelledOn,
+    cancelRef: initial?.cancelRef,
+  }));
   const [usageStatus, setUsageStatus] = useState<'active' | 'underused'>(
     initial?.usageStatus ?? 'active'
   );
@@ -783,6 +818,7 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
         cardExpiry: cardExpiry.trim() || undefined,
         usageStatus,
         notes: notes.trim() || undefined,
+        ...subExtras,
       });
       onClose();
     } catch (err) {
@@ -1038,6 +1074,16 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
             className="w-full min-h-[44px] rounded-xl border border-[#747775] dark:border-[#8E918F] bg-transparent px-3.5 text-sm text-[#1F1F1F] dark:text-[#E3E3E3]"
           />
         </div>
+
+        <SubscriptionExtras
+          value={subExtras}
+          onChange={setSubExtras}
+          amount={parseFloat(amount) || 0}
+          billingCycle={billingCycle}
+          active={active}
+          currency={currency}
+          recentPayments={recentPayments}
+        />
 
         {initial?.priceHistory && initial.priceHistory.length > 1 && (
           <div className="rounded-2xl border border-[#E1E3E1] dark:border-[#444746] p-3 space-y-1">

@@ -1205,6 +1205,18 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
             ? Boolean(data.reimbursed)
             : false,
         tags: cleanTags,
+        fxAmount: data.fxAmount && data.fxAmount > 0 ? Math.round(data.fxAmount * 100) / 100 : undefined,
+        fxCurrency: data.fxAmount && data.fxCurrency ? data.fxCurrency.trim().toUpperCase().slice(0, 4) : undefined,
+        fxRate: data.fxAmount && data.fxRate && data.fxRate > 0 ? data.fxRate : undefined,
+        splitWays:
+          resolvedEntryType === 'expense' && data.splitWays && data.splitWays > 1
+            ? Math.min(20, Math.round(data.splitWays))
+            : undefined,
+        splitWith: data.splitWays && data.splitWays > 1 ? data.splitWith?.trim().slice(0, 80) || undefined : undefined,
+        receiptThumb:
+          data.receiptThumb && data.receiptThumb.startsWith('data:image/') && data.receiptThumb.length <= 17000
+            ? data.receiptThumb
+            : undefined,
         createdAt: existingItem?.createdAt ?? now,
         updatedAt: now,
       };
@@ -1343,6 +1355,11 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
         priceHistory: nextPriceHistory.length > 0 ? nextPriceHistory : undefined,
         lastPaidDate: data.lastPaidDate ?? existingItem?.lastPaidDate,
         totalPaidCount: data.totalPaidCount ?? existingItem?.totalPaidCount ?? 0,
+        seats: data.seats && data.seats > 1 ? Math.min(20, Math.round(data.seats)) : undefined,
+        annualPrice: data.annualPrice && data.annualPrice > 0 ? Math.round(data.annualPrice * 100) / 100 : undefined,
+        variableAmount: data.variableAmount || undefined,
+        cancelledOn: !data.active ? data.cancelledOn || undefined : undefined,
+        cancelRef: !data.active ? data.cancelRef?.trim().slice(0, 120) || undefined : undefined,
         notes: data.notes?.trim() || undefined,
         createdAt: existingItem?.createdAt ?? now,
         updatedAt: now,

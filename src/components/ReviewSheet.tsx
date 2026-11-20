@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { BarChart3, X } from 'lucide-react';
 import { useVault } from '../context/VaultContext';
 import {
+  advanceDateByCycle,
   calculateHabitStreak,
   formatCurrency,
   getOffsetDateISO,
@@ -23,7 +24,8 @@ export const ReviewSheet: React.FC<{ onClose: () => void; initialRange?: Range }
   onClose,
   initialRange = 'week',
 }) => {
-  const { purchases, habits, tasks, goals, preferences } = useVault();
+  const { purchases, habits, tasks, goals, preferences, subscriptions, updatePreferences } = useVault();
+  const [editRates, setEditRates] = useState(false);
   const [range, setRange] = useState<Range>(initialRange);
   const today = getTodayISO();
   const from = rangeStart(range, today);
@@ -97,6 +99,35 @@ export const ReviewSheet: React.FC<{ onClose: () => void; initialRange?: Range }
     const budget =
       range === 'month' ? preferences.monthlyBudget : range === 'year' ? preferences.monthlyBudget * 12 : 0;
 
+    // Estimated card rewards for the range
+    const rates = preferences.rewardRates ?? {};
+    let rewards = 0;
+    for (const p of purchases) {
+      if (!inRange(p.date) || getPurchaseEntryType(p) !== 'expense') continue;
+      rewards += (p.amount * (rates[p.paymentMethod] ?? 0)) / 100;
+    }
+
+    // Renewal forecast: next 12 months
+    const forecast: { key: string; label: string; total: number }[] = [];
+    for (let i = 0; i < 12; i++) {
+      const d = new Date(Number(today.slice(0, 4)), Number(today.slice(5, 7)) - 1 + i, 1);
+      forecast.push({
+        key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`,
+        label: d.toLocaleDateString('en-US', { month: 'narrow' }),
+        total: 0,
+      });
+    }
+    const horizon = forecast[11].key;
+    for (const sub of subscriptions) {
+      if (!sub.active) continue;
+      let next = sub.nextBillingDate;
+      for (let guard = 0; guard < 60 && next.slice(0, 7) <= horizon; guard++) {
+        const slot = forecast.find((f) => f.key === next.slice(0, 7));
+        if (slot) slot.total += sub.amount;
+        next = advanceDateByCycle(next, sub.billingCycle);
+      }
+    }
+
     return {
       spent,
       income,
@@ -111,8 +142,10 @@ export const ReviewSheet: React.FC<{ onClose: () => void; initialRange?: Range }
       focusMin,
       goalsDone,
       budget,
+      rewards,
+      forecast,
     };
-  }, [purchases, habits, tasks, goals, from, today, range, preferences.monthlyBudget]);
+  }, [purchases, habits, tasks, goals, subscriptions, from, today, range, preferences.monthlyBudget, preferences.rewardRates]);
 
   const stat = (label: string, value: React.ReactNode, sub?: string) => (
     <div className="rounded-2xl bg-[#F8F9FA] dark:bg-[#131314] p-3">
@@ -207,6 +240,61 @@ export const ReviewSheet: React.FC<{ onClose: () => void; initialRange?: Range }
                   {m.count}× · <span className={blur}>{formatCurrency(m.total, cur)}</span>
                 </span>
               </div>
+            ))}
+          </div>
+        )}
+
+        {data.forecast.some((f) => f.total > 0) && (
+          <div className="space-y-1.5">
+            <p className="text-[11px] font-medium text-[#5F6368] dark:text-[#9AA0A6]">Renewals · next 12 months</p>
+            <div className="flex items-end gap-1 h-16">
+              {data.forecast.map((f) => {
+                const max = Math.max(...data.forecast.map((x) => x.total), 1);
+                return (
+                  <div key={f.key} className="flex-1 flex flex-col items-center gap-0.5 h-full justify-end" title={`${f.key}: ${formatCurrency(f.total, cur)}`}>
+                    <div
+                      className={`w-full rounded-t ${f.total >= max * 0.75 ? 'bg-[#E37400]' : 'hub-bg-accent'}`}
+                      style={{ height: `${Math.max(3, (f.total / max) * 100)}%`, opacity: f.total ? 1 : 0.2 }}
+                    />
+                    <span className="text-[9px] text-[#5F6368] dark:text-[#9AA0A6]">{f.label}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        <div className="flex items-center justify-between gap-2 text-xs">
+          <span>
+            Est. card rewards:{' '}
+            <b className={blur}>{formatCurrency(data.rewards, cur)}</b>
+          </span>
+          <button type="button" onClick={() => setEditRates((v) => !v)} className="text-[11px] hub-text-accent">
+            {editRates ? 'Done' : 'Set rates'}
+          </button>
+        </div>
+        {editRates && (
+          <div className="grid grid-cols-2 gap-2">
+            {(['Card', 'Digital Wallet', 'Bank Transfer', 'Cash'] as const).map((m) => (
+              <label key={m} className="flex items-center justify-between gap-2 text-xs">
+                <span className="truncate">{m}</span>
+                <span className="inline-flex items-center gap-1">
+                  <input
+                    type="number"
+                    min={0}
+                    max={20}
+                    step={0.1}
+                    defaultValue={preferences.rewardRates?.[m] ?? ''}
+                    onBlur={(e) =>
+                      void updatePreferences((prev) => ({
+                        rewardRates: { ...prev.rewardRates, [m]: Math.max(0, Math.min(20, parseFloat(e.target.value) || 0)) },
+                      }))
+                    }
+                    className="w-14 min-h-[32px] rounded-lg border border-[#DADCE0] dark:border-[#444746] bg-transparent px-2 text-right font-mono"
+                  />
+                  %
+                </span>
+              </label>
             ))}
           </div>
         )}

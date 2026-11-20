@@ -50,6 +50,15 @@ export interface PurchaseRecord {
   reimbursable?: boolean;
   reimbursed?: boolean;
   tags?: string[];
+  // Foreign currency (amount above is in your base currency)
+  fxAmount?: number;
+  fxCurrency?: string; // e.g. EUR
+  fxRate?: number; // base per 1 foreign
+  // Split / IOU
+  splitWays?: number; // total people incl. you
+  splitWith?: string; // names
+  // Compressed receipt thumbnail (data:image/jpeg;base64, ≤ ~12 KB)
+  receiptThumb?: string;
   createdAt: number;
   updatedAt: number;
 }
@@ -83,6 +92,11 @@ export interface SubscriptionRecord {
   priceHistory?: SubscriptionPriceChange[];
   lastPaidDate?: string;
   totalPaidCount?: number;
+  seats?: number; // people sharing the plan (incl. you)
+  annualPrice?: number; // price if billed yearly (for savings hint)
+  variableAmount?: boolean; // utility-style bill — amount varies
+  cancelledOn?: string; // YYYY-MM-DD
+  cancelRef?: string; // confirmation number / note
   notes?: string;
   createdAt: number;
   updatedAt: number;
@@ -397,6 +411,7 @@ export interface HubPreferences {
   taskTemplates?: TaskTemplate[];
   phoneWidgets?: PhoneWidgetConfig;
   colorLabels?: Partial<Record<CalendarColor, string>>;
+  rewardRates?: Partial<Record<PaymentMethod, number>>; // % back per method
   categoryBudgets?: Partial<Record<PurchaseCategory, number>>;
   scratchpad?: string;
   focusSessionsToday?: {

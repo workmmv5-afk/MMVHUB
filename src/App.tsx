@@ -1331,6 +1331,13 @@ const HubShell: React.FC = () => {
       {subscriptionModal.open && (
         <SubscriptionModal
           initial={subscriptionModal.item}
+          recentPayments={
+            subscriptionModal.item
+              ? purchases
+                  .filter((p) => p.title.startsWith(`${subscriptionModal.item!.name} (`))
+                  .map((p) => p.amount)
+              : []
+          }
           currency={preferences.currency}
           onSave={saveSubscription}
           onDelete={deleteSubscription}
