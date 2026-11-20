@@ -60,6 +60,13 @@ import {
 } from '../lib/syncEngine';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { applyTypography, resolveTypography } from '../lib/typography';
+import { isNative } from '../lib/native';
+import { cancelAllNativeReminders, syncNativeReminders } from '../lib/nativeReminders';
+import {
+  clearWidgetSnapshot,
+  pushWidgetSnapshot,
+  resolvePhoneWidgets,
+} from '../lib/widgetSnapshot';
 import {
   PIN_FREE_ATTEMPTS,
   PIN_MAX,
@@ -95,6 +102,7 @@ import {
   firePendingReminderNotifications,
   getNotificationPermission,
   maybeFireEveningSummary,
+  refreshNativeNotificationPermission,
   requestNotificationPermission,
   updateAppBadge,
 } from '../lib/notifications';
@@ -953,6 +961,12 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
   }, [saveMeta, showSnackbar]);
 
   const signInWithGoogle = useCallback(async () => {
+    if (isNative()) {
+      // Google blocks its sign-in popup inside app WebViews
+      throw new Error(
+        'Google sign-in isn’t available in the app yet. Your vault works offline on this phone; sync from the web version.'
+      );
+    }
     const cred = await signInWithPopup(auth, googleProvider);
     const signedInUser = cred.user;
     if (isOnline) {
@@ -2337,9 +2351,75 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
     showSnackbar,
   ]);
 
+  // Android app: plan reminders into the OS alarm scheduler (fires when closed)
+  useEffect(() => {
+    if (!isNative() || phase !== 'unlocked') return;
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        const perm = await refreshNativeNotificationPermission();
+        await syncNativeReminders({
+          enabled: Boolean(preferences.notificationsEnabled) && perm === 'granted',
+          tasks,
+          habits,
+          subscriptions,
+          calendarEvents,
+          goals,
+          preferences,
+        });
+      })().catch(() => undefined);
+    }, 1500);
+    return () => window.clearTimeout(timer);
+  }, [phase, tasks, habits, subscriptions, calendarEvents, goals, preferences]);
+
+  // Android app: keep home-screen widgets in sync
+  useEffect(() => {
+    if (!isNative()) return;
+    if (phase !== 'unlocked') {
+      // Preferences are cleared on lock → use the last unlocked widget config
+      let cached: HubPreferences['phoneWidgets'];
+      try {
+        cached = JSON.parse(localStorage.getItem('mmv_phone_widgets') || 'null') ?? undefined;
+      } catch {
+        cached = undefined;
+      }
+      if (phase === 'needs-unlock' && resolvePhoneWidgets({ phoneWidgets: cached }).hideWhenLocked) {
+        void pushWidgetSnapshot({
+          tasks: [],
+          habits: [],
+          calendarEvents: [],
+          subscriptions: [],
+          purchases: [],
+          goals: [],
+          preferences: { ...DEFAULT_PREFERENCES, phoneWidgets: cached },
+          locked: true,
+        });
+      }
+      return;
+    }
+    try {
+      localStorage.setItem('mmv_phone_widgets', JSON.stringify(preferences.phoneWidgets ?? {}));
+    } catch {
+      // ignore
+    }
+    const timer = window.setTimeout(() => {
+      void pushWidgetSnapshot({
+        tasks,
+        habits,
+        calendarEvents,
+        subscriptions,
+        purchases,
+        goals,
+        preferences,
+        locked: false,
+      });
+    }, 800);
+    return () => window.clearTimeout(timer);
+  }, [phase, tasks, habits, calendarEvents, subscriptions, purchases, goals, preferences]);
+
   // Automatic background reminder loop when vault is unlocked & notifications enabled
   useEffect(() => {
     if (
+      isNative() ||
       phase !== 'unlocked' ||
       !preferences.notificationsEnabled ||
       getNotificationPermission() !== 'granted'
@@ -2633,6 +2713,9 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
     await clearAllLocalVaultData();
     clearNotificationSentLog();
     updateAppBadge(0);
+    void cancelAllNativeReminders();
+    void clearWidgetSnapshot();
+    void removeNativeBiometricSecret();
     setPurchases([]);
     setSubscriptions([]);
     setHabits([]);

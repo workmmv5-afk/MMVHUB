@@ -37,6 +37,10 @@ import { PWAInstallButton } from './components/PWAInstallButton';
 import { LogoWordmark } from './components/Logo';
 import { BiometricOffer } from './components/SecuritySettings';
 import {
+  useNativeIntegration,
+  type NativeIntent,
+} from './hooks/useNativeIntegration';
+import {
   CalendarEventModal,
   GoalModal,
   HabitModal,
@@ -270,6 +274,104 @@ const HubShell: React.FC = () => {
       phase === 'unlocked' && notifConfig.showBadge ? badgeCount : 0
     );
   }, [phase, badgeCount, notifConfig.showBadge]);
+
+  // Android: widget deep links, notification actions, back button
+  const handleNativeIntent = (intent: NativeIntent) => {
+    const openTab = (tab: NavTab) => {
+      setRemindersMenuOpen(false);
+      setAppsMenuOpen(false);
+      setAccountMenuOpen(false);
+      setActiveTab(tab);
+    };
+    const openRecord = (kind: string, id: string) => {
+      if (kind === 'task') {
+        const t = tasks.find((x) => x.id === id);
+        if (t) setTaskModal({ open: true, item: t });
+        else openTab('tasks');
+      } else if (kind === 'habit') {
+        const h = habits.find((x) => x.id === id);
+        if (h) setHabitModal({ open: true, item: h });
+        else openTab('habits');
+      } else if (kind === 'event') {
+        const ev = calendarEvents.find((x) => x.id === id);
+        if (ev) setCalendarModal({ open: true, item: ev });
+        else openTab('calendar');
+      } else if (kind === 'subscription') {
+        const s = subscriptions.find((x) => x.id === id);
+        if (s) setSubscriptionModal({ open: true, item: s });
+        else openTab('purchases');
+      } else if (kind === 'goal') {
+        const g = goals.find((x) => x.id === id);
+        if (g) setGoalModal({ open: true, item: g });
+        openTab('goals');
+      } else {
+        openTab('home');
+      }
+    };
+
+    if (intent.type === 'notification') {
+      const { actionId, kind, recordId } = intent;
+      if (actionId === 'done' && kind === 'task') {
+        if (tasks.find((t) => t.id === recordId && !t.completed)) void toggleTaskCompleted(recordId);
+      } else if (actionId === 'done' && kind === 'habit') {
+        void toggleHabitLog(recordId, getTodayISO(), 'complete');
+      } else if (actionId === 'paid' && kind === 'subscription') {
+        void logSubscriptionPayment(recordId);
+      } else {
+        openRecord(kind, recordId);
+      }
+      return;
+    }
+
+    // mmvhub://<verb>/<kind>/<id?>
+    const [verb, kind, id] = intent.url.replace(/^mmvhub:\/\//, '').split('/');
+    if (verb === 'new') {
+      if (kind === 'task') setTaskModal({ open: true, item: null, defaultListId: DEFAULT_TASK_LIST_ID });
+      else if (kind === 'purchase') setPurchaseModal({ open: true, item: null });
+      else if (kind === 'habit') setHabitModal({ open: true, item: null });
+      else if (kind === 'event') setCalendarModal({ open: true, item: null, defaultDate: getTodayISO() });
+      else if (kind === 'goal') setGoalModal({ open: true, item: null });
+    } else if (verb === 'toggle' && id) {
+      if (kind === 'task') void toggleTaskCompleted(id);
+      else if (kind === 'habit') {
+        const h = habits.find((x) => x.id === id);
+        void toggleHabitLog(id, getTodayISO(), h && h.targetPerDay > 1 ? 'increment' : 'toggle');
+      }
+    } else if (verb === 'open') {
+      const tabs: NavTab[] = ['home', 'purchases', 'habits', 'goals', 'tasks', 'calendar', 'settings'];
+      if (!id && tabs.includes(kind as NavTab)) openTab(kind as NavTab);
+      else if (id) openRecord(kind, id);
+    }
+  };
+
+  useNativeIntegration({
+    unlocked: phase === 'unlocked',
+    preferences,
+    onIntent: handleNativeIntent,
+    onBack: () => {
+      // 1) any open sheet/dialog/menu handles Escape itself
+      if (
+        document.querySelector('[role="dialog"]') ||
+        remindersMenuOpen ||
+        appsMenuOpen ||
+        accountMenuOpen ||
+        commandOpen
+      ) {
+        window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+        setRemindersMenuOpen(false);
+        setAppsMenuOpen(false);
+        setAccountMenuOpen(false);
+        setCommandOpen(false);
+        return true;
+      }
+      // 2) otherwise go Home before leaving the app
+      if (phase === 'unlocked' && activeTab !== 'home') {
+        setActiveTab('home');
+        return true;
+      }
+      return false;
+    },
+  });
 
   if (phase !== 'unlocked') {
     return <VaultGate />;

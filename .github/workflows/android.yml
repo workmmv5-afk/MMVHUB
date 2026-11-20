@@ -1,0 +1,90 @@
+name: Android APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write # publish the APK as a GitHub Release
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Type check
+        run: npm run lint
+
+      - name: Build web app
+        run: npm run build
+
+      - name: Sync Capacitor
+        run: npx cap sync android
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: Restore signing key
+        env:
+          KEYSTORE_B64: ${{ secrets.MMV_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/mmv-release.p12"
+            echo "MMV_KEYSTORE_FILE=$RUNNER_TEMP/mmv-release.p12" >> "$GITHUB_ENV"
+            echo "SIGNED=1" >> "$GITHUB_ENV"
+          else
+            echo "::warning::No MMV_KEYSTORE_BASE64 secret — building a debug-signed APK"
+            echo "SIGNED=0" >> "$GITHUB_ENV"
+          fi
+
+      - name: Build APK
+        working-directory: android
+        env:
+          MMV_KEYSTORE_PASSWORD: ${{ secrets.MMV_KEYSTORE_PASSWORD }}
+          MMV_KEY_ALIAS: mmvhub
+        run: |
+          chmod +x gradlew
+          VERSION=$(node -p "require('../package.json').version")
+          CODE=$((100 + GITHUB_RUN_NUMBER))
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "CODE=$CODE" >> "$GITHUB_ENV"
+          if [ "$SIGNED" = "1" ]; then TASK=assembleRelease; else TASK=assembleDebug; fi
+          ./gradlew "$TASK" --no-daemon --stacktrace -PversionCode=$CODE -PversionName=$VERSION
+          APK=$(find app/build/outputs/apk -name '*.apk' | head -n 1)
+          mkdir -p "$GITHUB_WORKSPACE/out"
+          cp "$APK" "$GITHUB_WORKSPACE/out/MMV-HUB-$VERSION.apk"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MMV-HUB-${{ env.VERSION }}-${{ env.CODE }}
+          path: out/*.apk
+
+      - name: Publish "Latest Android build" release
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete android-latest --cleanup-tag --yes || true
+          gh release create android-latest out/*.apk \
+            --target "$GITHUB_SHA" \
+            --title "MMV-HUB $VERSION (build $CODE)" \
+            --notes "Latest Android build from ${GITHUB_SHA::7}. Download the .apk on your phone and open it to install." \
+            --latest

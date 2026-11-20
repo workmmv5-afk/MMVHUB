@@ -12,6 +12,9 @@ export default defineConfig(() => {
       tailwindcss(),
       VitePWA({
         registerType: 'autoUpdate',
+        // Registered from main.tsx on web only (not inside the Android app,
+        // where a SW cache would keep serving old assets after updates).
+        injectRegister: false,
         includeAssets: [
           'icon.svg',
           'apple-touch-icon.png',

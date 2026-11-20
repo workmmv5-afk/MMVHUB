@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Download, Share, X } from 'lucide-react';
 import { usePWAInstall } from '../hooks/usePWAInstall';
+import { isNative } from '../lib/native';
 
 interface PWAInstallButtonProps {
   compact?: boolean;
@@ -12,7 +13,8 @@ export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({
   const { isInstallable, isInstalled, isIOS, install } = usePWAInstall();
   const [showIOSGuide, setShowIOSGuide] = useState(false);
 
-  if (isInstalled) {
+  // Already installed, or running inside the Android app
+  if (isInstalled || isNative()) {
     return null;
   }
 

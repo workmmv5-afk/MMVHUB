@@ -296,6 +296,27 @@ export interface NotificationConfig {
   eveningSummaryTime?: string; // HH:mm
   bellHorizonDays?: number; // Upcoming range in the bell popover
   showBadge?: boolean; // bell + app-icon badge count
+  // Android app only
+  headsUp?: boolean; // pop over other apps (high importance)
+  vibrate?: boolean;
+  actionButtons?: boolean; // Done / Snooze / Paid buttons on notifications
+  snoozeMinutes?: number;
+}
+
+/** Android home-screen widget appearance & content. */
+export interface PhoneWidgetConfig {
+  theme?: 'system' | 'light' | 'dark';
+  opacity?: number; // 0..100 background opacity
+  accent?: 'app' | 'blue' | 'green' | 'purple' | 'amber' | 'red';
+  hideAmounts?: boolean;
+  hideWhenLocked?: boolean;
+  rows?: number; // Today widget rows 1..5
+  todayTitle?: string;
+  todayTasks?: boolean;
+  todayHabits?: boolean;
+  todayEvents?: boolean;
+  todayDoneItems?: boolean;
+  quick?: { task?: boolean; purchase?: boolean; habit?: boolean; event?: boolean };
 }
 
 export type HomeWidgetId =
@@ -344,6 +365,7 @@ export interface HubPreferences {
   notifyEvents?: boolean;
   notificationConfig?: NotificationConfig;
   homeWidgets?: HomeWidgetConfig[];
+  phoneWidgets?: PhoneWidgetConfig;
   categoryBudgets?: Partial<Record<PurchaseCategory, number>>;
   scratchpad?: string;
   focusSessionsToday?: {

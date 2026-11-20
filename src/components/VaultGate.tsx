@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Delete, Eye, EyeOff, Fingerprint } from 'lucide-react';
 import { useVault } from '../context/VaultContext';
 import { LogoMark } from './Logo';
-import { PIN_MAX, PIN_MIN } from '../lib/quickUnlock';
+import { PIN_MAX, PIN_MIN, isNativeApp } from '../lib/quickUnlock';
 
 type Step = 'pin' | 'confirm' | 'passphrase';
 
@@ -436,7 +436,7 @@ export const VaultGate: React.FC = () => {
             )
           )}
 
-          {!user && isOnline && (
+          {!user && isOnline && !isNativeApp() && (
             <button type="button" className={linkCls} disabled={busy} onClick={() => void googleRestore()}>
               {isSetup ? 'Restore with Google' : 'Sign in with Google'}
             </button>

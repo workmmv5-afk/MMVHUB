@@ -5,6 +5,7 @@ import {
   DEFAULT_NOTIFICATION_CONFIG,
   resolveNotificationConfig,
 } from '../lib/notifications';
+import { isNative } from '../lib/native';
 
 interface NotificationCustomizerProps {
   preferences: HubPreferences;
@@ -173,12 +174,14 @@ export const NotificationCustomizer: React.FC<NotificationCustomizerProps> = ({
               </select>
             </div>
           )}
-          <Toggle
-            label="Play chime"
-            hint="Sound when alerts are delivered"
-            checked={cfg.sound}
-            onChange={(sound) => patch({ sound })}
-          />
+          {!isNative() && (
+            <Toggle
+              label="Play chime"
+              hint="Sound when alerts are delivered"
+              checked={cfg.sound}
+              onChange={(sound) => patch({ sound })}
+            />
+          )}
         </div>
       </div>
 
@@ -372,11 +375,56 @@ export const NotificationCustomizer: React.FC<NotificationCustomizerProps> = ({
         </div>
       </div>
 
+      {isNative() && (
+        <div className="space-y-2 pt-3 border-t border-[#F0F4F9] dark:border-[#282A2C]">
+          <span className={labelClass}>Phone</span>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Toggle
+              label="Pop on screen"
+              checked={cfg.headsUp}
+              onChange={(headsUp) => patch({ headsUp })}
+            />
+            <Toggle
+              label="Vibrate"
+              checked={cfg.vibrate}
+              onChange={(vibrate) => patch({ vibrate })}
+            />
+            <Toggle
+              label="Sound"
+              checked={preferences.notificationConfig?.sound ?? true}
+              onChange={(sound) => patch({ sound })}
+            />
+            <Toggle
+              label="Action buttons"
+              hint="Done · Snooze · Paid"
+              checked={cfg.actionButtons}
+              onChange={(actionButtons) => patch({ actionButtons })}
+            />
+            <div className="space-y-1">
+              <label htmlFor="notif-snooze" className={labelClass}>
+                Snooze length
+              </label>
+              <select
+                id="notif-snooze"
+                value={cfg.snoozeMinutes}
+                onChange={(e) => patch({ snoozeMinutes: Number(e.target.value) })}
+                className={selectClass}
+              >
+                {[10, 15, 30, 60, 120, 240].map((m) => (
+                  <option key={m} value={m}>
+                    {m >= 60 ? `${m / 60} h` : `${m} min`}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </div>
+      )}
+
       <p className="text-[11px] text-[#5F6368] dark:text-[#9AA0A6]">
-        Browser alerts fire while MMV-HUB is open (or running as an installed
-        app). Defaults: {leadLabel(DEFAULT_NOTIFICATION_CONFIG.taskLeadMinutes)}{' '}
-        for tasks, {leadLabel(DEFAULT_NOTIFICATION_CONFIG.eventDefaultLeadMinutes)}{' '}
-        for events.
+        {isNative()
+          ? 'Reminders are scheduled on your phone and arrive even when the app is closed.'
+          : `Alerts fire while MMV-HUB is open. Defaults: ${leadLabel(DEFAULT_NOTIFICATION_CONFIG.taskLeadMinutes)} for tasks, ${leadLabel(DEFAULT_NOTIFICATION_CONFIG.eventDefaultLeadMinutes)} for events.`}
       </p>
     </div>
   );

@@ -18,6 +18,7 @@ import {
   getTodayISO,
   isHabitScheduledOnDate,
 } from './format';
+import { hashId, isNative, loadLocalNotifications } from './native';
 
 export interface ReminderItem {
   id: string;
@@ -44,6 +45,8 @@ export interface CategorizedRemindersResult {
   upcoming: CategorizedReminder[];
 }
 
+export const NATIVE_INSTANT_CHANNEL = 'mmv_instant';
+
 const SENT_LOG_PREFIX = 'mmv_notif_sent_';
 const EVENING_LOG_KEY = 'mmv_notif_evening_sent';
 
@@ -68,6 +71,10 @@ export const DEFAULT_NOTIFICATION_CONFIG: Required<NotificationConfig> = {
   eveningSummaryTime: '21:00',
   bellHorizonDays: 7,
   showBadge: true,
+  headsUp: true,
+  vibrate: true,
+  actionButtons: true,
+  snoozeMinutes: 60,
 };
 
 function clampInt(value: unknown, min: number, max: number, fallback: number) {
@@ -111,6 +118,10 @@ export function resolveNotificationConfig(
         : d.eveningSummaryTime,
     bellHorizonDays: clampInt(raw.bellHorizonDays, 1, 30, d.bellHorizonDays),
     showBadge: raw.showBadge ?? d.showBadge,
+    headsUp: raw.headsUp ?? d.headsUp,
+    vibrate: raw.vibrate ?? d.vibrate,
+    actionButtons: raw.actionButtons ?? d.actionButtons,
+    snoozeMinutes: clampInt(raw.snoozeMinutes, 5, 1440, d.snoozeMinutes),
   };
 }
 
@@ -129,9 +140,23 @@ export function isNotificationDayActive(
 // Permission + dispatch
 // ---------------------------------------------------------------------------
 
+// In the Android app, permission lives in the native layer; cache it so the
+// synchronous getter keeps working.
+let nativePermission: NotificationPermission = 'default';
+
+export async function refreshNativeNotificationPermission(): Promise<NotificationPermission> {
+  if (!isNative()) return getNotificationPermission() as NotificationPermission;
+  const LN = await loadLocalNotifications();
+  const { display } = await LN.checkPermissions();
+  nativePermission =
+    display === 'granted' ? 'granted' : display === 'denied' ? 'denied' : 'default';
+  return nativePermission;
+}
+
 export function getNotificationPermission():
   | NotificationPermission
   | 'unsupported' {
+  if (isNative()) return nativePermission;
   if (typeof window === 'undefined' || !('Notification' in window)) {
     return 'unsupported';
   }
@@ -141,6 +166,13 @@ export function getNotificationPermission():
 export async function requestNotificationPermission(): Promise<
   NotificationPermission | 'unsupported'
 > {
+  if (isNative()) {
+    const LN = await loadLocalNotifications();
+    const { display } = await LN.requestPermissions();
+    nativePermission =
+      display === 'granted' ? 'granted' : display === 'denied' ? 'denied' : 'default';
+    return nativePermission;
+  }
   if (typeof window === 'undefined' || !('Notification' in window)) {
     return 'unsupported';
   }
@@ -182,6 +214,27 @@ export async function dispatchLocalNotification(
   options?: { silent?: boolean; requireInteraction?: boolean }
 ): Promise<boolean> {
   if (getNotificationPermission() !== 'granted') return false;
+
+  if (isNative()) {
+    try {
+      const LN = await loadLocalNotifications();
+      await LN.schedule({
+        notifications: [
+          {
+            id: hashId(tag || `${title}-${Date.now()}`),
+            title,
+            body,
+            channelId: NATIVE_INSTANT_CHANNEL,
+            smallIcon: 'ic_stat_mmv',
+            extra: { url: 'mmvhub://open/home' },
+          },
+        ],
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  }
 
   const opts: NotificationOptions = {
     body,
